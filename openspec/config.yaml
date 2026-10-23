@@ -1,0 +1,44 @@
+schema: spec-driven
+
+context: |
+  Front Desk is one AI agent that answers customers on web chat and WhatsApp for a made-up home-cleaning business, "Mopwell Cleaning (demo)" in Austin, TX.
+  WhatsApp runs through Kapso (webhooks in, Kapso SDK out). Humans work only in Kapso's embedded inbox at /staff.
+
+  Stack: Next.js 16 (App Router, src/ layout), React 19, TypeScript strict, pnpm, Tailwind 4 + shadcn/ui, Drizzle ORM on Neon Postgres (WebSocket Pool), zod env validation in src/env.ts, AI SDK with @ai-sdk/groq, Vitest, Playwright. Hosted on Vercel.
+
+  Architecture rules:
+  - The agent core (src/lib/agent) is channel-agnostic. It returns AgentReply[] and never imports a channel adapter.
+  - Channel adapters (src/lib/channels) render AgentReply[] for their channel's capabilities and send. Nothing else talks to Kapso's send API.
+  - Prices come only from the database through tools. The model never states a price or an option a tool did not return.
+  - Webhooks are verified (HMAC on the raw body), stored once (dedupe key), acknowledged fast, and processed asynchronously in order per conversation.
+  - Ownership (ai or human) is stored on the conversation. The agent never replies while a human owns it.
+  - Free-form WhatsApp sends respect the 24-hour reply window.
+  - The agent stays scoped to Mopwell and refuses unrelated requests.
+
+  Clean-room rule: no code, model names, file paths or internal stories from the author's employer. Everything is written from scratch.
+
+rules:
+  proposal:
+    - State what is out of scope.
+    - Name the phase this change belongs to and the changes it depends on.
+  specs:
+    - One capability per spec.
+    - Every requirement has at least one WHEN/THEN scenario.
+    - Scenarios describe observable behavior, not implementation.
+  design:
+    - Name the tradeoffs of each option, not only the winner.
+    - List open questions that a spike or the user must answer.
+  tasks:
+    - Every task ends with a verification step (a test, a command, or a manual check with the expected result).
+    - Order tasks so the app builds and tests pass after each group.
+
+operations:
+  apply:
+    guidance:
+      - Reproduce bugs end to end before fixing them.
+      - After each task, run the focused tests for what changed, then the full suite (pnpm typecheck, pnpm lint, pnpm test).
+      - Tick the task's checkbox in tasks.md as soon as it is verified, not at the end.
+      - Fix lint warnings and flaky tests on sight, even when unrelated.
+  archive:
+    guidance:
+      - Archive only when every box in tasks.md is ticked and openspec validate --all --strict passes.
