@@ -1,0 +1,12 @@
+{
+  "description": "Kapso dashboard or API test delivery. Top-level test: true, idempotency key prefixed test-, sent from the business number.",
+  "capturedAt": "2026-10-24T05:43:00.884Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.received",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "test-whatsapp.message.received-0e952b9c06d9d89bfc66d54b1ff06585",
+    "x-webhook-signature": "eafd8337f76a0c5ad84dbeadb6d73775a52ffe010ce403df2295d016a2c97050"
+  },
+  "body": "{\"test\":true,\"message\":{\"id\":\"wamid.TEST_jQoWdw4eCoV3TBFjJdIzTWePfzlA\",\"from\":\"12058138571\",\"text\":{\"body\":\"This is a test message from Kapso webhook testing\"},\"type\":\"text\",\"kapso\":{\"origin\":\"cloud_api\",\"status\":\"received\",\"direction\":\"inbound\",\"has_media\":false,\"processing_status\":\"pending\"},\"username\":\"kapso_test_user\",\"timestamp\":\"1792820579\",\"from_user_id\":\"US.13491208655302741918\",\"from_parent_user_id\":\"US.ENT.506847293015824\"},\"conversation\":{\"id\":\"test-conv-00fd08ac2afd4cf4\",\"kapso\":{\"messages_count\":0,\"last_message_text\":null},\"status\":\"active\",\"metadata\":{},\"username\":\"kapso_test_user\",\"created_at\":\"2026-10-24T01:42:59-03:00\",\"updated_at\":\"2026-10-24T02:42:59-03:00\",\"contact_name\":\"kapso_test_user\",\"phone_number\":\"12058138571\",\"last_active_at\":\"2026-10-24T02:42:59-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"US.13491208655302741918\",\"parent_business_scoped_user_id\":\"US.ENT.506847293015824\"},\"test_timestamp\":\"2026-10-24T02:42:59-03:00\",\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}

@@ -1,0 +1,12 @@
+{
+  "description": "Our own interactive button send, echoed back.",
+  "capturedAt": "2026-10-24T05:23:25.969Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.sent",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "89cd111b87b045278bb6f186c367dd687e6855ea36eb2588bfa477ab9a604b44",
+    "x-webhook-signature": "051e6308cd5b2d60f0d9ce0edff611f274a41876c74d5ffe851c5bc8671cd8fd"
+  },
+  "body": "{\"message\":{\"id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEjkyRTVCMkFDQUQzRDQ0NUYxMgA=\",\"to\":\"8801700000000\",\"type\":\"interactive\",\"kapso\":{\"origin\":\"cloud_api\",\"status\":\"sent\",\"content\":\"Spike test 2 of 3: tap one button.\\nOptions:\\n• Standard clean\\n• Deep clean\",\"direction\":\"outbound\",\"has_media\":false,\"message_type_data\":{\"type\":\"button\",\"body_text\":\"Spike test 2 of 3: tap one button.\"},\"processing_status\":\"processed\"},\"context\":null,\"username\":null,\"timestamp\":\"1792819405\",\"to_user_id\":null,\"interactive\":{\"body\":{\"text\":\"Spike test 2 of 3: tap one button.\"},\"type\":\"button\",\"action\":{\"buttons\":[{\"type\":\"reply\",\"reply\":{\"id\":\"svc_standard\",\"title\":\"Standard clean\"}},{\"type\":\"reply\",\"reply\":{\"id\":\"svc_deep\",\"title\":\"Deep clean\"}}]}},\"to_parent_user_id\":null},\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":3,\"last_inbound_at\":\"2026-10-24T05:22:52.121602Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEjkyRTVCMkFDQUQzRDQ0NUYxMgA=\",\"last_outbound_at\":\"2026-10-24T05:23:25.691645Z\",\"last_message_text\":\"Spike test 2 of 3: tap one button.\\nOptions:\\n• Standard clean\\n• Deep clean\",\"last_message_type\":\"interactive\",\"last_message_timestamp\":\"2026-10-24T05:23:25.691645Z\"},\"status\":\"active\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:22:52-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:23:25-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}

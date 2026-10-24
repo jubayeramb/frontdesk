@@ -1,0 +1,12 @@
+{
+  "description": "Customer tapped a reply button; context.id is the message that carried the buttons.",
+  "capturedAt": "2026-10-24T05:23:45.777Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.received",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "280c266f1b0a1f2d940883987b0fcef26d9cfc85a1df7cef9128bb7ff5192dbb",
+    "x-webhook-signature": "971ab138ec8c0b1b91a80f73999789e4174f8156951118d0137a1cdc5e39df27"
+  },
+  "body": "{\"message\":{\"id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MTFCMzI3QjA2MjI3NjcxMTEzODRCRTEzREU1RTU1AA==\",\"from\":\"8801700000000\",\"type\":\"interactive\",\"kapso\":{\"origin\":\"cloud_api\",\"status\":\"delivered\",\"content\":\"Selected: Standard clean\",\"direction\":\"inbound\",\"has_media\":false,\"message_type_data\":{\"type\":\"button_reply\"},\"processing_status\":\"pending\"},\"context\":{\"id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEjkyRTVCMkFDQUQzRDQ0NUYxMgA=\",\"from\":\"12058138571\"},\"username\":\"testcustomer\",\"timestamp\":\"1792819425\",\"interactive\":{\"type\":\"button_reply\",\"button_reply\":{\"id\":\"svc_standard\",\"title\":\"Standard clean\"}},\"from_user_id\":\"BD.1000000000000001\",\"from_parent_user_id\":null},\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":6,\"last_inbound_at\":\"2026-10-24T05:23:45.515249Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MTFCMzI3QjA2MjI3NjcxMTEzODRCRTEzREU1RTU1AA==\",\"last_outbound_at\":\"2026-10-24T05:23:27.978583Z\",\"last_message_text\":\"Selected: Standard clean\",\"last_message_type\":\"interactive\",\"last_message_timestamp\":\"2026-10-24T05:23:45.515249Z\"},\"status\":\"active\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:23:45-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:23:45-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}

@@ -17,7 +17,7 @@
 ## 3. Landing page and theme
 
 - [ ] 3.1 Switch the dark variant to `prefers-color-scheme` and verify Playwright screenshots of `/` in light and dark
-- [ ] 3.2 Write the landing page (services, area, how to book, banner, privacy footer) in the voice guide's style, and verify the demo-site scenarios with Playwright
+- [ ] 3.2 Write the landing page (services, area, how to book, banner, privacy footer, and the "Triplone" note wherever WhatsApp appears) in the voice guide's style, and verify the demo-site scenarios with Playwright
 - [ ] 3.3 Check `/` with the chat open at 360px and 1280px in both themes, and fix anything misaligned or clipped
 
 ## 4. End to end

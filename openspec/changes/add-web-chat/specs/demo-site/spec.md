@@ -28,6 +28,13 @@ Every public page with the chat SHALL say that conversations are stored for 7 da
 - **WHEN** a visitor scrolls to the footer of `/`
 - **THEN** they see the retention and privacy note
 
+### Requirement: The WhatsApp sender name is explained
+Wherever the site sends visitors to WhatsApp, it SHALL say that messages come from "Triplone", the WhatsApp Business account behind this demo, so the name does not look like a wrong number.
+
+#### Scenario: Visitor about to continue on WhatsApp
+- **WHEN** a visitor sees a "Continue on WhatsApp" link or the WhatsApp number on the site
+- **THEN** a short note next to it says the chat will show as "Triplone", the account that runs the Mopwell demo
+
 ### Requirement: Light and dark themes
 Public pages SHALL follow the visitor's system color scheme and stay readable in both.
 

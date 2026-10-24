@@ -1,0 +1,12 @@
+{
+  "description": "A person replied from the Kapso inbox. Identical in shape to an API send.",
+  "capturedAt": "2026-10-24T05:27:11.622Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.sent",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "2d8f1e108281a9b4735819bfe052684d7e5da523bcd3fe9d93d674d9776b10ba",
+    "x-webhook-signature": "e46c8303ff015ca124b47755a6e9b17ed8453f6e874ff2978f90d6ec25f16400"
+  },
+  "body": "{\"message\":{\"id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEkREQTczNzQwMjg2QzQzQUIyMwA=\",\"to\":\"8801700000000\",\"text\":{\"body\":\"Hi, this is a person replying from Kapso dashboard.\"},\"type\":\"text\",\"kapso\":{\"origin\":\"cloud_api\",\"status\":\"sent\",\"content\":\"Hi, this is a person replying from Kapso dashboard.\",\"direction\":\"outbound\",\"has_media\":false,\"processing_status\":\"processed\"},\"context\":null,\"username\":null,\"timestamp\":\"1792819631\",\"to_user_id\":null,\"to_parent_user_id\":null},\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":10,\"last_inbound_at\":\"2026-10-24T05:24:20.320112Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEkREQTczNzQwMjg2QzQzQUIyMwA=\",\"last_outbound_at\":\"2026-10-24T05:27:11.039194Z\",\"last_message_text\":\"Hi, this is a person replying from Kapso dashboard.\",\"last_message_type\":\"text\",\"last_message_timestamp\":\"2026-10-24T05:27:11.039194Z\"},\"status\":\"active\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:24:20-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:27:11-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}

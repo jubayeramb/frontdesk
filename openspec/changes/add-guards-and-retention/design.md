@@ -5,7 +5,8 @@
 `replyPolicy` exists on the adapter and returns "always allowed" (add-whatsapp-channel).
 `conversations.wa_last_inbound_at` is updated on every inbound WhatsApp message.
 Vercel's Hobby plan runs crons once a day, which fits retention.
-The spike recorded Groq's real daily limit; `GLOBAL_DAILY_TURN_CAP` is set from it.
+The spike recorded 1,000 requests a day per model and about 3 requests per turn, so `GLOBAL_DAILY_TURN_CAP` defaults to 250.
+The 8,000 tokens a minute limit is tighter in bursts; the model fallback and the busy reply cover it.
 
 ## Goals / Non-Goals
 

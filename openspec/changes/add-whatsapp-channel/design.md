@@ -3,8 +3,8 @@
 ## Context
 
 The agent core returns `AgentReply[]` and persists messages (add-agent-core).
-Fixtures for every event live in `test/fixtures/kapso/`, and the spike's findings say which dedupe key is stable across retries and what the batch envelope looks like.
-Where this design says "per the spike", use the recorded finding.
+Fixtures for every event live in `test/fixtures/kapso/`, re-signed with the secret `test-webhook-secret` (see the fixture README).
+The spike's findings that shape this design: one `X-Idempotency-Key` covers a whole batch, WhatsApp timestamps have one-second resolution, enabling buffering on an existing webhook does not take effect, and Kapso rejects free-form sends outside the 24-hour window with a 422.
 
 ## Goals / Non-Goals
 
@@ -40,8 +40,11 @@ The last numbered `choices` payload is stored on the outbound message, so a late
 
 1. `route.ts` reads `await req.text()`, verifies `X-Webhook-Signature` (64 hex chars, `timingSafeEqual` on the HMAC-SHA256 of the raw body).
 2. Normalize to a list of events: a batch envelope becomes many, a single payload becomes one.
+   A delivery with top-level `"test": true` (Kapso's test button and test API) is acknowledged and dropped. Its sender is our own business number, so processing it would make the agent message itself.
 3. Insert each into `webhook_events(dedupe_key unique, partition_key, event_type, payload, status, attempts, error, created_at)` with `ON CONFLICT DO NOTHING`.
-   `dedupe_key` is per the spike: `X-Idempotency-Key` if stable across retries and unique per event in a batch, otherwise `event_type + ":" + message.id` (or conversation id for conversation events).
+   `dedupe_key` is `event_type + ":" + message.id` (conversation id for conversation events).
+   The idempotency header is not enough on its own, because a batch shares one key across all its events.
+   Events are ordered by arrival (`created_at, id`), never by WhatsApp's timestamp, which has one-second resolution.
    `partition_key` is the customer's WhatsApp number.
 4. Return 200, and schedule `drain(partitionKey)` with `after()` for each partition touched, plus one `sweep()`.
 
@@ -71,7 +74,7 @@ That is enough here, because a stuck event matters only while the customer is st
 
 ### Inbound mapping
 
-`button_reply.id` and `list_reply.id` are option ids already.
+`button_reply.id` and `list_reply.id` are option ids already, and their `context.id` names the message that carried the options.
 Plain text that is a number within the last numbered choices maps to that option.
 Everything else is free text.
 Non-text, non-interactive messages are stored and skipped in this change.
@@ -86,6 +89,8 @@ This is the base that add-human-handoff needs to tell our sends from inbox repli
 - [`after()` work is cut off when the function times out] → Each turn is a few seconds; the sweep recovers anything cut off.
 - [The sweep only runs when a request arrives, so a stuck event waits if nobody writes] → The stuck customer's next message drains their own partition; if the real-phone tests show stuck events anyway, add an external per-minute scheduler (QStash schedule) calling a sweep endpoint.
 - [Batch envelope differs from the docs] → The spike fixture is the source of truth; the normalizer is unit-tested against it.
+- [Buffering is turned on later and silently ignored] → Leave buffering off; per-customer ordering already handles rapid messages. If it is ever wanted, create a new webhook with buffering on instead of updating the old one.
+- [Logs leak phone numbers through message ids] → `wamid` ids embed the phone number in base64, so log masking treats message ids like phone numbers.
 - [Interactive sends require an open 24-hour window] → Always true right after an inbound message; add-guards-and-retention handles the rest.
 - [Kapso SDK is pre-1.0 (0.4.x)] → Wrap it in the adapter so a breaking change touches one file; pin the exact version.
 

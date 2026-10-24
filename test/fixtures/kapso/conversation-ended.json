@@ -1,0 +1,12 @@
+{
+  "description": "Conversation ended from the inbox. No field says why it ended.",
+  "capturedAt": "2026-10-24T05:28:05.927Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.conversation.ended",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "d5099c2f9f5bb2cbba31ad584597f4f66d5c8304dacb7d97f82dd0a89b78314b",
+    "x-webhook-signature": "ae0b4660d3680966ebcaf162527666a42db6f9419b657ff6ef6ad1751e1b66a1"
+  },
+  "body": "{\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":10,\"last_inbound_at\":\"2026-10-24T05:24:20.320112Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEkREQTczNzQwMjg2QzQzQUIyMwA=\",\"last_outbound_at\":\"2026-10-24T05:27:11.039194Z\",\"last_message_text\":\"Hi, this is a person replying from Kapso dashboard.\",\"last_message_type\":\"text\",\"last_message_timestamp\":\"2026-10-24T05:27:11.039194Z\"},\"status\":\"ended\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:28:05-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:27:11-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\"}"
+}

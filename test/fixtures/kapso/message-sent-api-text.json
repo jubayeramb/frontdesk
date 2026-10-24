@@ -1,0 +1,12 @@
+{
+  "description": "Our own text send through the API, echoed back.",
+  "capturedAt": "2026-10-24T05:23:23.926Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.sent",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "ee62651a75fa3133a15c8729a6672a219b7fdd94c634e7d3dc032865a578d12c",
+    "x-webhook-signature": "75536a8f4bac868eccf30d8f6e360e0e08f5d7e178e4ccb1bd9e1c7670acb6f6"
+  },
+  "body": "{\"message\":{\"id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEjk2MzM4NEY5NDdDQUJDODQ5QQA=\",\"to\":\"8801700000000\",\"text\":{\"body\":\"Spike test 1 of 3: plain text sent through the API.\"},\"type\":\"text\",\"kapso\":{\"origin\":\"cloud_api\",\"status\":\"sent\",\"content\":\"Spike test 1 of 3: plain text sent through the API.\",\"direction\":\"outbound\",\"has_media\":false,\"processing_status\":\"processed\"},\"context\":null,\"username\":null,\"timestamp\":\"1792819403\",\"to_user_id\":null,\"to_parent_user_id\":null},\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":2,\"last_inbound_at\":\"2026-10-24T05:22:52.121602Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABEYEjk2MzM4NEY5NDdDQUJDODQ5QQA=\",\"last_outbound_at\":\"2026-10-24T05:23:23.148850Z\",\"last_message_text\":\"Spike test 1 of 3: plain text sent through the API.\",\"last_message_type\":\"text\",\"last_message_timestamp\":\"2026-10-24T05:23:23.148850Z\"},\"status\":\"active\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:22:52-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:23:23-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}

@@ -45,6 +45,7 @@ The pricing save action runs one transaction: update the edited rows, then `UPDA
 
 Upserts on stable slugs (`ON CONFLICT (slug) DO NOTHING`), so re-running never overwrites staff edits.
 Default prices go in `src/db/seed-data.ts` so tests can import the same numbers.
+The package has no `"type": "module"`, so `tsx` compiles `.ts` scripts to CommonJS and top-level await fails; keep `main()` wrapped as it is, or name scripts `.mts`.
 
 ### Slots
 

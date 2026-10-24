@@ -1,0 +1,12 @@
+{
+  "description": "Customer reacted to a message.",
+  "capturedAt": "2026-10-24T05:24:20.582Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.received",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "f6c1f545200fb0e86f97bd1f822bc1017a79ba2b29c9822e5b7ea23a32f4d3b5",
+    "x-webhook-signature": "6573e635c28c082c9d2380e841359d9ff4d3661a8acc7f821369ddda6dee1b2e"
+  },
+  "body": "{\"message\":{\"id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MTk0OUI2NDFDQzJGOEQ2ODc5MUFFOUU0QTJDM0MzAA==\",\"from\":\"8801700000000\",\"type\":\"reaction\",\"kapso\":{\"origin\":\"cloud_api\",\"status\":\"delivered\",\"content\":\"Reacted with 👍 to message wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MEI2NzQ0QTFDMEIyMzEyOUY2NTJCQzQwNDBFNUUzAA==\",\"direction\":\"inbound\",\"has_media\":false,\"message_type_data\":{\"emoji\":\"👍\",\"message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MEI2NzQ0QTFDMEIyMzEyOUY2NTJCQzQwNDBFNUUzAA==\"},\"processing_status\":\"pending\"},\"context\":null,\"reaction\":{\"emoji\":\"👍\",\"message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MEI2NzQ0QTFDMEIyMzEyOUY2NTJCQzQwNDBFNUUzAA==\"},\"username\":\"testcustomer\",\"timestamp\":\"1792819460\",\"from_user_id\":\"BD.1000000000000001\",\"from_parent_user_id\":null},\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":9,\"last_inbound_at\":\"2026-10-24T05:24:20.320112Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MTk0OUI2NDFDQzJGOEQ2ODc5MUFFOUU0QTJDM0MzAA==\",\"last_outbound_at\":\"2026-10-24T05:23:27.978583Z\",\"last_message_text\":\"Reacted with 👍 to message wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1MEI2NzQ0QTFDMEIyMzEyOUY2NTJCQzQwNDBFNUUzAA==\",\"last_message_type\":\"reaction\",\"last_message_timestamp\":\"2026-10-24T05:24:20.320112Z\"},\"status\":\"active\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:24:20-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:24:20-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}
