@@ -5,6 +5,9 @@ import { parseEnv } from "./env-schema";
 const valid = {
   DATABASE_URL: "postgres://u:p@localhost:5432/db",
   GROQ_API_KEY: "gsk_test",
+  KAPSO_API_KEY: "kapso_test",
+  KAPSO_PHONE_NUMBER_ID: "1000000000000001",
+  KAPSO_WEBHOOK_SECRET: "test-webhook-secret",
   STAFF_PASSWORD: "correct-horse-battery",
   STAFF_SESSION_SECRET: "a".repeat(32),
 };
@@ -28,6 +31,12 @@ describe("parseEnv", () => {
     );
     expect(() => parseEnv({ ...valid, STAFF_SESSION_SECRET: "short" })).toThrow(
       /STAFF_SESSION_SECRET: Use at least 32 characters/,
+    );
+  });
+
+  it("rejects a phone number instead of Kapso's phone_number_id", () => {
+    expect(() => parseEnv({ ...valid, KAPSO_PHONE_NUMBER_ID: "+1 205-813-8571" })).toThrow(
+      /KAPSO_PHONE_NUMBER_ID: Use the numeric phone_number_id/,
     );
   });
 });

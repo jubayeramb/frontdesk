@@ -39,6 +39,7 @@ export function createTurnTools(ctx: TurnContext) {
         };
         return {
           ok: true as const,
+          shownToCustomer: SHOWN_AS_BUTTONS,
           tours: rows.map((t) => ({
             tourSlug: t.slug,
             name: t.name,
@@ -63,6 +64,8 @@ export function createTurnTools(ctx: TurnContext) {
         const { quote } = result;
         await updateState(ctx.db, ctx.conversationId, { quote });
         record.quote = quote;
+        // The customer named the tour, so tour options looked up first are moot.
+        record.choices = undefined;
         record.amounts.add(quote.pricePerPersonBdt).add(quote.totalBdt);
         return {
           ok: true as const,
@@ -115,6 +118,7 @@ export function createTurnTools(ctx: TurnContext) {
         };
         await updateState(ctx.db, ctx.conversationId, { booking });
         record.amounts.add(quote.totalBdt);
+        record.choices = undefined;
         return {
           ok: true as const,
           bookingReference: `TR-${String(booking.id).padStart(5, "0")}`,
@@ -129,6 +133,10 @@ export function createTurnTools(ctx: TurnContext) {
 
   return { tools, record };
 }
+
+// Said in the result as well as the prompt: the model is likeliest to list the
+// options right after it receives them.
+const SHOWN_AS_BUTTONS = "These appear as buttons under your reply. Introduce them in one short sentence and do not list them.";
 
 export const TOOL_FAILED = {
   ok: false as const,
@@ -163,6 +171,7 @@ async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: s
   }
   return {
     ok: true as const,
+    ...(departures.length > 0 ? { shownToCustomer: SHOWN_AS_BUTTONS } : {}),
     tour: tour.name,
     departures: departures.map((d) => ({ departureId: d.id, label: d.label })),
   };

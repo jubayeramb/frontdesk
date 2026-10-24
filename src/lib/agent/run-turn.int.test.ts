@@ -25,7 +25,7 @@ async function turn(script: ScriptStep[], inbound: Inbound, opts: { channel?: Ch
   const channel = opts.channel ?? "web";
   const conversationId = opts.conversationId ?? (await newConversation(db, channel)).id;
   const model = scriptedModel(script);
-  const replies = await runTurn({ db, conversationId, channel, inbound, now, models: only(model) });
+  const { replies } = await runTurn({ db, conversationId, channel, inbound, now, models: only(model) });
   return { replies, model, conversationId };
 }
 
@@ -113,6 +113,51 @@ describe("choices", () => {
         ],
       },
     ]);
+  });
+
+  it("drops tour options once the turn has quoted the tour the customer named", async () => {
+    await seed(db);
+    // Seen on a real phone: the model looks the tour up, then quotes it.
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "listTours", input: {} }] },
+        { tools: [{ name: "getQuote", input: { tourSlug: "sundarbans", travelers: 2 } }] },
+        { text: "The Sundarbans 3-day boat tour for 2 people is ৳29,000 in total." },
+      ],
+      { text: "How much Sundarban tour cost for 2 people?" },
+    );
+    expect(replies).toEqual([{ kind: "text", text: "The Sundarbans 3-day boat tour for 2 people is ৳29,000 in total." }]);
+  });
+
+  it("drops departure options once the turn has booked one", async () => {
+    await seed(db);
+    const { conversationId } = await turn(
+      [{ tools: [{ name: "getQuote", input: { tourSlug: "sundarbans", travelers: 2 } }] }, { text: "৳29,000 for 2." }],
+      { text: "Sundarbans for 2" },
+    );
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "listDepartures", input: { tourSlug: "sundarbans" } }] },
+        { tools: [{ name: "bookDeparture", input: { departureId: "sundarbans:2026-11-05" } }] },
+        { text: "Booked: Thu 5 Nov, reference TR-00001." },
+      ],
+      { text: "Book Thursday 5 November" },
+      { conversationId },
+    );
+    expect(replies.map((r) => r.kind)).toEqual(["text"]);
+  });
+
+  it("sends only the model's first message when it keeps writing", async () => {
+    await seed(db);
+    const { replies, conversationId } = await turn(
+      [
+        { tools: [{ name: "listDepartures", input: { tourSlug: "sundarbans" } }] },
+        { text: "Pick a departure below.Let me know which date you'd like.Whenever you're ready, tell me." },
+      ],
+      { text: "when does it leave?" },
+    );
+    expect(replies[0]).toEqual({ kind: "text", text: "Pick a departure below." });
+    expect((await loadWindow(db, conversationId)).map((m) => m.body)).toContain("Pick a departure below.");
   });
 
   it("hands a tapped option's id to the model and books it", async () => {
@@ -231,7 +276,7 @@ describe("model failures", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     await seed(db);
     const conversation = await newConversation(db);
-    const replies = await runTurn({
+    const { replies } = await runTurn({
       db,
       conversationId: conversation.id,
       channel: "web",
@@ -250,7 +295,7 @@ describe("model failures", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     await seed(db);
     const conversation = await newConversation(db);
-    const replies = await runTurn({
+    const { replies } = await runTurn({
       db,
       conversationId: conversation.id,
       channel: "web",

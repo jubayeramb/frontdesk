@@ -60,6 +60,7 @@ export const channelEnum = pgEnum("channel", ["web", "whatsapp"]);
 export const ownerEnum = pgEnum("conversation_owner", ["ai", "human"]);
 export const directionEnum = pgEnum("message_direction", ["inbound", "outbound"]);
 export const senderEnum = pgEnum("message_sender", ["customer", "ai", "human", "system"]);
+export const deliveryEnum = pgEnum("message_delivery", ["pending", "sent", "failed"]);
 
 export const contacts = pgTable("contacts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -116,6 +117,9 @@ export const messages = pgTable(
     clientNonce: text("client_nonce"),
     // The channel's id for the message (a WhatsApp wamid), once known.
     externalId: text("external_id").unique(),
+    // Outbound channel sends only: pending until the channel accepts it.
+    deliveryStatus: deliveryEnum("delivery_status"),
+    deliveryError: text("delivery_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("messages_conversation_id_idx").on(t.conversationId, t.id)],
@@ -142,9 +146,36 @@ export const bookings = pgTable(
   (t) => [check("bookings_travelers_range", sql`${t.travelers} between 1 and 10`)],
 );
 
+export const webhookStatusEnum = pgEnum("webhook_event_status", [
+  "pending",
+  "processing",
+  "done",
+  "failed",
+]);
+
+// Every webhook event, stored once and processed in arrival order per customer.
+export const webhookEvents = pgTable(
+  "webhook_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    dedupeKey: text("dedupe_key").notNull().unique(),
+    // The customer's WhatsApp number: events with the same key run one at a time.
+    partitionKey: text("partition_key").notNull(),
+    eventType: text("event_type").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    status: webhookStatusEnum("status").notNull().default("pending"),
+    attempts: smallint("attempts").notNull().default(0),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("webhook_events_partition_idx").on(t.partitionKey, t.status, t.createdAt, t.id)],
+);
+
 export type Tour = typeof tours.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type WebhookEvent = typeof webhookEvents.$inferSelect;
 export type Channel = (typeof channelEnum.enumValues)[number];

@@ -10,6 +10,7 @@ import {
   type Conversation,
   type Message,
 } from "@/db/schema";
+import type { ChoiceOption } from "@/lib/agent/replies";
 import type { ConversationState } from "./state";
 
 export const HISTORY_WINDOW = 20;
@@ -83,6 +84,8 @@ export type NewMessage = {
   body: string;
   payload?: Record<string, unknown>;
   clientNonce?: string;
+  externalId?: string;
+  deliveryStatus?: "pending" | "sent" | "failed";
 };
 
 export async function appendMessage(db: Db, message: NewMessage): Promise<Message> {
@@ -120,6 +123,75 @@ export async function updateState(
     .set({
       state: sql`${conversations.state} || ${JSON.stringify(patch)}::jsonb`,
       updatedAt: sql`now()`,
+    })
+    .where(eq(conversations.id, conversationId));
+}
+
+// Outbox: a message is marked pending with our nonce before the send, then
+// gets the channel's id, or the error that stopped it.
+export async function markSending(db: Db, messageId: number, nonce: string): Promise<void> {
+  await db
+    .update(messages)
+    .set({ clientNonce: nonce, deliveryStatus: "pending" })
+    .where(eq(messages.id, messageId));
+}
+
+export async function markSent(db: Db, messageId: number, externalId: string): Promise<void> {
+  await db
+    .update(messages)
+    .set({ externalId, deliveryStatus: "sent", deliveryError: null })
+    .where(eq(messages.id, messageId));
+}
+
+// By our id after a rejected send, or by the channel's id when a failure is
+// reported later. Returns whether a message matched.
+export async function markFailed(
+  db: Db,
+  target: { id: number } | { externalId: string },
+  error: string,
+): Promise<boolean> {
+  const rows = await db
+    .update(messages)
+    .set({ deliveryStatus: "failed", deliveryError: error })
+    .where("id" in target ? eq(messages.id, target.id) : eq(messages.externalId, target.externalId))
+    .returning({ id: messages.id });
+  return rows.length > 0;
+}
+
+export async function findByExternalId(db: Db, externalId: string): Promise<Message | undefined> {
+  const [row] = await db.select().from(messages).where(eq(messages.externalId, externalId));
+  return row;
+}
+
+// The options of the latest choices reply, so a later tap or number maps back.
+export async function lastChoices(db: Db, conversationId: string): Promise<ChoiceOption[] | null> {
+  const [row] = await db
+    .select({ payload: messages.payload })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.direction, "outbound"),
+        sql`${messages.payload}->>'kind' = 'choices'`,
+      ),
+    )
+    .orderBy(desc(messages.id))
+    .limit(1);
+  return (row?.payload?.options as ChoiceOption[] | undefined) ?? null;
+}
+
+// Remembers Kapso's conversation and when the customer last wrote, which
+// opens WhatsApp's 24-hour reply window.
+export async function noteWhatsAppInbound(
+  db: Db,
+  conversationId: string,
+  input: { kapsoConversationId?: string; at: Date },
+): Promise<void> {
+  await db
+    .update(conversations)
+    .set({
+      kapsoConversationId: input.kapsoConversationId ?? sql`${conversations.kapsoConversationId}`,
+      waLastInboundAt: sql`greatest(${conversations.waLastInboundAt}, ${input.at.toISOString()}::timestamptz)`,
     })
     .where(eq(conversations.id, conversationId));
 }
