@@ -33,9 +33,14 @@ async function age(minutes: number) {
 
 describe("storeEvents", () => {
   it("stores a replayed event once", async () => {
-    expect(await storeEvents(db, events("8801700000001", "m1", "m2"))).toEqual({ stored: 2, partitions: ["8801700000001"] });
-    expect(await storeEvents(db, events("8801700000001", "m1"))).toEqual({ stored: 0, partitions: ["8801700000001"] });
-    expect(await statuses()).toHaveLength(2);
+    const first = await storeEvents(db, events("8801700000001", "m1", "m2"));
+    expect(first).toMatchObject({ stored: 2, partitions: ["8801700000001"] });
+    expect(first.fresh.map((e) => e.dedupeKey)).toEqual(["whatsapp.message.received:m1", "whatsapp.message.received:m2"]);
+    expect(await storeEvents(db, events("8801700000001", "m1", "m3"))).toMatchObject({
+      stored: 1,
+      fresh: [expect.objectContaining({ dedupeKey: "whatsapp.message.received:m3" })],
+    });
+    expect(await statuses()).toHaveLength(3);
   });
 });
 

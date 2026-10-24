@@ -2,20 +2,23 @@ import { generateText, isStepCount, type ModelMessage } from "ai";
 
 import type { Db } from "@/db/client";
 import type { Channel, Message } from "@/db/schema";
-import { appendMessage, getConversation, loadWindow } from "@/lib/conversations/store";
+import { appendMessage, appendMessages, getConversation, loadWindow } from "@/lib/conversations/store";
 import { firstMessage } from "./first-message";
+import { dropListedOptions, dropOptionIds } from "./listed-options";
+import { stripDateLists, asksForDeparture } from "./date-lists";
 import { describeError, withFallback, type NamedModel } from "./model";
-import { guardPrices } from "./price-guard";
+import { ensureQuoteTotal, guardPrices } from "./price-guard";
 import { buildSystemPrompt } from "./prompt";
 import type { AgentReply, ChoiceOption } from "./replies";
-import { createTurnTools } from "./tools";
+import { createTurnTools, offerDepartures } from "./tools";
 
 export const BUSY_REPLY = "We're busy right now. Try again in a minute.";
 const MAX_STEPS = 5;
 
 // A tap on a button or list row carries the option id; typed text does not.
-// `externalId` is the channel's id for the message, when it has one.
-export type Inbound = { text: string; choiceId?: string; externalId?: string };
+// `externalId` is the channel's id for the message, when it has one, and
+// `clientNonce` the sender's own, so a resubmission is stored once.
+export type Inbound = { text: string; choiceId?: string; externalId?: string; clientNonce?: string };
 
 export type TurnResult = {
   replies: AgentReply[];
@@ -47,6 +50,7 @@ export async function runTurn(input: {
     body: inbound.text,
     payload: inbound.choiceId ? { choiceId: inbound.choiceId } : undefined,
     externalId: inbound.externalId,
+    clientNonce: inbound.clientNonce,
   });
 
   const history = await loadWindow(db, conversationId);
@@ -75,34 +79,49 @@ export async function runTurn(input: {
       inputTokens: outcome.value.totalUsage.inputTokens ?? 0,
       outputTokens: outcome.value.totalUsage.outputTokens ?? 0,
     });
+    let text = dropOptionIds(firstMessage(outcome.value.text.trim()));
+    // A reply that asks for a departure but lists none this turn (dates copied
+    // from an earlier message, or "which departure?" with nothing to pick) gets
+    // the quoted tour's real departures.
+    const quotedTour = record.quote?.tour.slug ?? conversation.state.quote?.tour.slug;
+    if (record.choicesOf !== "departures" && !record.booked && quotedTour && asksForDeparture(text)) {
+      try {
+        await offerDepartures({ db, conversationId, now }, record, quotedTour);
+      } catch (error) {
+        console.error(`offering departures after the reply failed: ${describeError(error)}`);
+      }
+    }
+    if (record.choicesOf === "departures") text = stripDateLists(text);
     const guarded = guardPrices({
-      text: firstMessage(outcome.value.text.trim()),
+      text: record.choices ? dropListedOptions(text, record.choices.options) : text,
       allowed: record.amounts,
       state: conversation.state,
       turnQuote: record.quote,
     });
     if (guarded.replaced) console.warn(`price guard replaced a reply from ${outcome.modelId}`);
+    // A booking confirmation speaks for itself; a fresh quote must show its total.
+    const reply = record.booked ? guarded.text : ensureQuoteTotal(guarded.text, record.quote);
     replies = [];
-    if (guarded.text) replies.push({ kind: "text", text: guarded.text });
+    if (reply) replies.push({ kind: "text", text: reply });
     if (record.choices) replies.push(record.choices);
     if (replies.length === 0) {
       replies.push({ kind: "text", text: "Sorry, I didn't get that. Which tour are you interested in?" });
     }
   }
 
-  const messageIds: number[] = [];
-  for (const reply of replies) {
-    const stored = await appendMessage(db, {
+  const stored = await appendMessages(
+    db,
+    conversationId,
+    replies.map((reply) => ({
       conversationId,
       channel,
-      direction: "outbound",
-      sentBy: "ai",
+      direction: "outbound" as const,
+      sentBy: "ai" as const,
       body: reply.kind === "choices" ? reply.prompt : reply.text,
       payload: reply,
-    });
-    messageIds.push(stored.id);
-  }
-  return { replies, messageIds };
+    })),
+  );
+  return { replies, messageIds: stored.map((m) => m.id) };
 }
 
 // History as the model sees it. Offered options and picked ids are spelled

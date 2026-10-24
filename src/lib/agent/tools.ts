@@ -18,6 +18,8 @@ export type TurnContext = { db: Db; conversationId: string; now: Date };
 // read it instead of trusting the model's text.
 export type TurnRecord = {
   choices?: ChoicesReply;
+  choicesOf?: "tours" | "departures";
+  booked?: boolean;
   amounts: Set<number>;
   quote?: Quote;
 };
@@ -35,11 +37,13 @@ export function createTurnTools(ctx: TurnContext) {
         record.choices = {
           kind: "choices",
           prompt: "Which tour would you like?",
+          label: "View tours",
           options: rows.map((t) => ({ id: t.slug, label: t.name })),
         };
+        record.choicesOf = "tours";
         return {
           ok: true as const,
-          shownToCustomer: SHOWN_AS_BUTTONS,
+          shownToCustomer: SHOWN_TO_CUSTOMER,
           tours: rows.map((t) => ({
             tourSlug: t.slug,
             name: t.name,
@@ -65,7 +69,8 @@ export function createTurnTools(ctx: TurnContext) {
         await updateState(ctx.db, ctx.conversationId, { quote });
         record.quote = quote;
         // The customer named the tour, so tour options looked up first are moot.
-        record.choices = undefined;
+        // Departures listed in the same turn are still what they pick from next.
+        if (record.choicesOf === "tours") record.choices = undefined;
         record.amounts.add(quote.pricePerPersonBdt).add(quote.totalBdt);
         return {
           ok: true as const,
@@ -88,7 +93,7 @@ export function createTurnTools(ctx: TurnContext) {
 
     bookDeparture: tool({
       description:
-        "Book a departure for the customer's latest quote. Call only after the customer picked a departure.",
+        "Make a new booking for a departure at the customer's latest quote. Call only after the customer picked a departure. It never changes or cancels an existing booking.",
       inputSchema: z.object({ departureId: z.string().describe("departure id from listDepartures") }),
       execute: guarded("bookDeparture", async ({ departureId }: { departureId: string }) => {
         const quote = (await getConversation(ctx.db, ctx.conversationId))?.state.quote;
@@ -116,9 +121,11 @@ export function createTurnTools(ctx: TurnContext) {
           travelers: quote.travelers,
           totalBdt: quote.totalBdt,
         };
-        await updateState(ctx.db, ctx.conversationId, { booking });
+        // A quote pays for one booking; the next one needs the travelers again.
+        await updateState(ctx.db, ctx.conversationId, { booking }, ["quote"]);
         record.amounts.add(quote.totalBdt);
         record.choices = undefined;
+        record.booked = true;
         return {
           ok: true as const,
           bookingReference: `TR-${String(booking.id).padStart(5, "0")}`,
@@ -135,8 +142,10 @@ export function createTurnTools(ctx: TurnContext) {
 }
 
 // Said in the result as well as the prompt: the model is likeliest to list the
-// options right after it receives them.
-const SHOWN_AS_BUTTONS = "These appear as buttons under your reply. Introduce them in one short sentence and do not list them.";
+// options right after it receives them. It names no widget, because the model
+// echoes whatever word it is given ("tap a button below").
+const SHOWN_TO_CUSTOMER =
+  'The customer already sees these options under your reply. Lead in with one short sentence, like "Here are our tours.", and do not repeat them or say how they are shown.';
 
 export const TOOL_FAILED = {
   ok: false as const,
@@ -156,7 +165,7 @@ function guarded<I, O>(name: string, execute: (input: I) => Promise<O>) {
   };
 }
 
-async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: string) {
+export async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: string) {
   const [tour] = await ctx.db.select().from(tours).where(eq(tours.slug, tourSlug));
   if (!tour || !tour.active) {
     return { ok: false as const, error: `There is no bookable tour called "${tourSlug}".` };
@@ -166,12 +175,14 @@ async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: s
     record.choices = {
       kind: "choices",
       prompt: `Departures for ${tour.name}`,
+      label: "View dates",
       options: departures.map((d) => ({ id: d.id, label: d.label })),
     };
+    record.choicesOf = "departures";
   }
   return {
     ok: true as const,
-    ...(departures.length > 0 ? { shownToCustomer: SHOWN_AS_BUTTONS } : {}),
+    ...(departures.length > 0 ? { shownToCustomer: SHOWN_TO_CUSTOMER } : {}),
     tour: tour.name,
     departures: departures.map((d) => ({ departureId: d.id, label: d.label })),
   };

@@ -8,6 +8,7 @@
 ## 2. Handoff tool and detection
 
 - [ ] 2.1 Add `requestHuman` (handoff on WhatsApp, WhatsApp link on web) and `NEXT_PUBLIC_WHATSAPP_NUMBER` to env; verify mock-model tests for both channels
+- [ ] 2.1a Route booking change and cancellation requests to `requestHuman` (prompt rule and tool description), and verify mock-model tests that a cancel request hands off on WhatsApp and gets the link on the web, and a live replay that "move our booking to the next date" offers no departures
 - [ ] 2.2 Add `not_before` to `webhook_events` and the claim query, and verify an integration test that a deferred event is not claimed early
 - [ ] 2.3 Handle `message.sent` (id match, deferral, human reply), and verify integration tests on fixtures: our echo before the id is stored stays AI, an unknown id after three checks becomes human
 - [ ] 2.4 Handle `conversation.ended` and verify an integration test that a human-owned conversation returns to AI
@@ -22,6 +23,7 @@
 ## 4. Real phone
 
 - [ ] 4.1 From a real phone: quote, ask for a person (owner flips, agent quiet), reply from `/staff` (stored as human, agent quiet), hand back, and get an agent answer; verify each step and record anything odd here
+- [ ] 4.1a From a real phone with a booking, ask to cancel it, and verify the conversation is handed to a person and no booking changes
 - [ ] 4.2 Reply from the inbox to an AI-owned conversation without a handoff request, and verify the agent goes quiet
 - [ ] 4.3 Document the inbox embed setup and revocation in `AGENTS.md`, and verify the steps run as written
 

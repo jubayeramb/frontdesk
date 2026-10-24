@@ -30,6 +30,8 @@ export function createWhatsAppAdapter(config: {
           buttonText: message.button,
           sections: [{ rows: message.rows }],
         });
+      case "reply":
+        throw new Error("WhatsApp sends rendered messages, never raw replies");
     }
   }
 
@@ -47,6 +49,14 @@ export function createWhatsAppAdapter(config: {
         return { ok: true, externalId };
       } catch (error) {
         return { ok: false, error: sendError(error) };
+      }
+    },
+    // Marks the message read and shows "typing…" until our reply, for up to 25 seconds.
+    async showTyping(inboundExternalId) {
+      try {
+        await client.messages.markRead({ phoneNumberId, messageId: inboundExternalId, typingIndicator: { type: "text" } });
+      } catch (error) {
+        console.warn(`whatsapp typing indicator failed: ${sendError(error).code}`);
       }
     },
   };

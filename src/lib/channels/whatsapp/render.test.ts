@@ -51,14 +51,36 @@ describe("choices", () => {
     expect(row!.description).toBe(label);
   });
 
-  it("cuts long button titles at a word", () => {
-    const [buttons] = render({
+  it("sends options that do not fit a button as a list that keeps the full labels", () => {
+    const [list] = render({
       kind: "choices",
       prompt: "Which tour would you like?",
-      options: [{ id: "sundarbans", label: "Sundarbans 3-day boat tour" }],
+      label: "View tours",
+      options: [
+        { id: "sundarbans", label: "Sundarbans 3-day boat tour" },
+        { id: "sylhet", label: "Sylhet tea gardens 2-day" },
+        { id: "bandarban", label: "Bandarban hills 3-day" },
+      ],
     });
-    expect(buttons).toMatchObject({ buttons: [{ id: "sundarbans", title: "Sundarbans 3-day…" }] });
+    expect(list).toEqual({
+      type: "list",
+      body: "Which tour would you like?",
+      button: "View tours",
+      rows: [
+        { id: "sundarbans", title: "Sundarbans 3-day boat…", description: "Sundarbans 3-day boat tour" },
+        { id: "sylhet", title: "Sylhet tea gardens 2-day" },
+        { id: "bandarban", title: "Bandarban hills 3-day" },
+      ],
+    });
   });
+});
+
+it("opens a list from its own label, cut to fit, or Choose for older replies", () => {
+  const options = Array.from({ length: 4 }, (_, i) => ({ id: `d${i}`, label: `Day ${i}` }));
+  const [dated] = render({ kind: "choices", prompt: "Departures", label: "View dates", options });
+  const [long] = render({ kind: "choices", prompt: "Departures", label: "View every departure this month", options });
+  const [old] = render({ kind: "choices", prompt: "Departures", options });
+  expect([dated, long, old].map((m) => (m as { button: string }).button)).toEqual(["View dates", "View every…", "Choose"]);
 });
 
 describe("text", () => {

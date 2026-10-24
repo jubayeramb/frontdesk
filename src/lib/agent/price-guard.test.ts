@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findAmounts, guardPrices } from "./price-guard";
+import { ensureQuoteTotal, findAmounts, guardPrices } from "./price-guard";
 
 const quote = {
   tour: { slug: "sundarbans", name: "Sundarbans 3-day boat tour" },
@@ -69,5 +69,18 @@ describe("guardPrices", () => {
   it("asks for details when there is no quote to fall back on", () => {
     const result = guardPrices({ text: "Tours start at ৳5,000.", allowed: new Set(), state: {} });
     expect(result.text).toBe("I can give you an exact price. Which tour, and how many travelers?");
+  });
+});
+
+describe("ensureQuoteTotal", () => {
+  it("puts the quote first when the reply skips the total, as seen in a live replay", () => {
+    expect(ensureQuoteTotal("Here are the upcoming departures for the Sundarbans tour.", quote)).toBe(
+      "Sundarbans 3-day boat tour for 4 travelers: ৳14,500 per person, ৳58,000 total. Here are the upcoming departures for the Sundarbans tour.",
+    );
+  });
+
+  it("leaves a reply that states the total, and a turn without a quote", () => {
+    expect(ensureQuoteTotal("That is ৳58,000 for the 4 of you.", quote)).toBe("That is ৳58,000 for the 4 of you.");
+    expect(ensureQuoteTotal("Which tour would you like?", undefined)).toBe("Which tour would you like?");
   });
 });

@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -122,7 +123,11 @@ export const messages = pgTable(
     deliveryError: text("delivery_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("messages_conversation_id_idx").on(t.conversationId, t.id)],
+  (t) => [
+    index("messages_conversation_id_idx").on(t.conversationId, t.id),
+    // A resubmitted web message carries the same nonce, so it is stored once.
+    uniqueIndex("messages_conversation_nonce").on(t.conversationId, t.clientNonce),
+  ],
 );
 
 // A stored booking with the quote it was made at. No capacity: this is a demo.

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
 
 import type { Db } from "@/db/client";
 import {
@@ -89,12 +89,40 @@ export type NewMessage = {
 };
 
 export async function appendMessage(db: Db, message: NewMessage): Promise<Message> {
-  const [row] = await db.insert(messages).values(message).returning();
-  await db
-    .update(conversations)
-    .set({ updatedAt: sql`now()` })
-    .where(eq(conversations.id, message.conversationId));
+  const [row] = await appendMessages(db, message.conversationId, [message]);
   return row!;
+}
+
+// One insert, so a reader sees all of a turn's replies or none of them.
+export async function appendMessages(db: Db, conversationId: string, rows: NewMessage[]): Promise<Message[]> {
+  const stored = await db.insert(messages).values(rows).returning();
+  await db.update(conversations).set({ updatedAt: sql`now()` }).where(eq(conversations.id, conversationId));
+  return stored.sort((a, b) => a.id - b.id);
+}
+
+export async function findByNonce(db: Db, conversationId: string, nonce: string): Promise<Message | undefined> {
+  const [row] = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.conversationId, conversationId), eq(messages.clientNonce, nonce)));
+  return row;
+}
+
+// The replies to one customer message: what was sent after it, up to the
+// customer's next message.
+export async function repliesTo(db: Db, inbound: Message): Promise<Message[]> {
+  const after = await db
+    .select()
+    .from(messages)
+    .where(and(eq(messages.conversationId, inbound.conversationId), gt(messages.id, inbound.id)))
+    .orderBy(asc(messages.id))
+    .limit(HISTORY_WINDOW);
+  const next = after.findIndex((m) => m.direction === "inbound");
+  return (next === -1 ? after : after.slice(0, next)).filter((m) => m.direction === "outbound");
+}
+
+export async function deleteMessage(db: Db, id: number): Promise<void> {
+  await db.delete(messages).where(eq(messages.id, id));
 }
 
 // The last `limit` messages, oldest first.
@@ -113,15 +141,17 @@ export async function loadWindow(
 }
 
 // Shallow-merges into the state; a key in the patch replaces the stored one.
+// `remove` drops keys in the same statement, such as a quote a booking used up.
 export async function updateState(
   db: Db,
   conversationId: string,
   patch: ConversationState,
+  remove: (keyof ConversationState)[] = [],
 ): Promise<void> {
   await db
     .update(conversations)
     .set({
-      state: sql`${conversations.state} || ${JSON.stringify(patch)}::jsonb`,
+      state: sql`(${conversations.state} || ${JSON.stringify(patch)}::jsonb) - ${`{${remove.join(",")}}`}::text[]`,
       updatedAt: sql`now()`,
     })
     .where(eq(conversations.id, conversationId));
@@ -136,7 +166,7 @@ export async function markSending(db: Db, messageId: number, nonce: string): Pro
     .where(eq(messages.id, messageId));
 }
 
-export async function markSent(db: Db, messageId: number, externalId: string): Promise<void> {
+export async function markSent(db: Db, messageId: number, externalId: string | null): Promise<void> {
   await db
     .update(messages)
     .set({ externalId, deliveryStatus: "sent", deliveryError: null })

@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "messages_conversation_nonce" ON "messages" USING btree ("conversation_id","client_nonce");

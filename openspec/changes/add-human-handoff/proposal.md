@@ -11,6 +11,7 @@ Ownership has to be explicit, stored, and respected by every code path that coul
 - Add the `requestHuman` tool.
   On WhatsApp it flips ownership to human and tells the customer a person will reply.
   On the web it offers a WhatsApp link instead, because people only reply on WhatsApp.
+- Hand off requests to change or cancel a booking the same way: the agent cannot change bookings, and must not offer a second booking in place of a change.
 - Detect human replies: an outbound `whatsapp.message.sent` that we did not send is a reply from Kapso's inbox.
   Store it as sent by `human` and flip ownership to human.
 - Hand back: a "Hand back to AI" button on `/staff`, or `whatsapp.conversation.ended` from Kapso, returns the conversation to the agent.

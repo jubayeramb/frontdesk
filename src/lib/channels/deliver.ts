@@ -61,10 +61,21 @@ async function storePart(
     channel: adapter.channel,
     direction: "outbound",
     sentBy: "ai",
-    body: message.type === "text" ? message.text : message.body,
+    body: messageBody(message),
     payload: { continues: replyId, part },
     clientNonce: nonce,
     deliveryStatus: "pending",
   });
   return row.id;
+}
+
+function messageBody(message: OutboundMessage): string {
+  switch (message.type) {
+    case "text":
+      return message.text;
+    case "reply":
+      return message.reply.kind === "choices" ? message.reply.prompt : message.reply.text;
+    default:
+      return message.body;
+  }
 }

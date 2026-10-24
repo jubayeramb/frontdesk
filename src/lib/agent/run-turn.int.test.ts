@@ -105,6 +105,7 @@ describe("choices", () => {
       {
         kind: "choices",
         prompt: "Departures for Sundarbans 3-day boat tour",
+        label: "View dates",
         options: [
           { id: "sundarbans:2026-11-05", label: "Thu 5 Nov" },
           { id: "sundarbans:2026-11-08", label: "Sun 8 Nov" },
@@ -158,6 +159,68 @@ describe("choices", () => {
     );
     expect(replies[0]).toEqual({ kind: "text", text: "Pick a departure below." });
     expect((await loadWindow(db, conversationId)).map((m) => m.body)).toContain("Pick a departure below.");
+  });
+
+  it("drops the departures the model also listed in its text", async () => {
+    await seed(db);
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "listDepartures", input: { tourSlug: "sylhet" } }] },
+        { text: "These are the next departures for the Sylhet tour:\n- Fri 6 Nov\n- Fri 13 Nov" },
+      ],
+      { text: "when does the sylhet tour leave?" },
+    );
+    expect(replies[0]).toEqual({ kind: "text", text: "These are the next departures for the Sylhet tour." });
+    expect(replies[1]).toMatchObject({ kind: "choices", options: expect.arrayContaining([{ id: "sylhet:2026-11-06", label: "Fri 6 Nov" }]) });
+  });
+
+  it("offers the quoted tour's departures when the model writes dates without listing them", async () => {
+    await seed(db);
+    // Seen on a real phone: the model copied dates from its own earlier reply.
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "getQuote", input: { tourSlug: "bandarban", travelers: 2 } }] },
+        { text: "The Bandarban hills 3-day tour is ৳24,000 for 2 travelers. Which departure (28 Oct, 31 Oct, 4 Nov, 7 Nov) would you like to book?" },
+      ],
+      { text: "We're 2 people and want to book the Bandarban tour" },
+    );
+    expect(replies[0]).toEqual({
+      kind: "text",
+      text: "The Bandarban hills 3-day tour is ৳24,000 for 2 travelers. Which departure would you like to book?",
+    });
+    expect(replies[1]).toMatchObject({
+      kind: "choices",
+      label: "View dates",
+      options: expect.arrayContaining([{ id: "bandarban:2026-11-07", label: "Sat 7 Nov" }]),
+    });
+  });
+
+  it("offers departures when the model asks which one without naming any", async () => {
+    await seed(db);
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "getQuote", input: { tourSlug: "bandarban", travelers: 2 } }] },
+        { text: "The Bandarban hills 3-day tour is ৳24,000 for 2 travelers. Which departure would you like to book?" },
+      ],
+      { text: "We're 2 people and want to book the Bandarban tour" },
+    );
+    expect(replies[1]).toMatchObject({ kind: "choices", label: "View dates" });
+  });
+
+  it("does not offer departures for dates in a booking confirmation, or without a quote", async () => {
+    await seed(db);
+    const booked = await turn(
+      [
+        { tools: [{ name: "getQuote", input: { tourSlug: "sundarbans", travelers: 2 } }] },
+        { tools: [{ name: "bookDeparture", input: { departureId: "sundarbans:2026-11-08" } }] },
+        { text: "Booked for Sun 8 Nov, ৳29,000 in total." },
+      ],
+      { text: "2 of us, book the Sundarbans on Sunday 8 Nov" },
+    );
+    expect(booked.replies).toEqual([{ kind: "text", text: "Booked for Sun 8 Nov, ৳29,000 in total." }]);
+
+    const unquoted = await turn([{ text: "Our tours leave from 28 Oct onwards." }], { text: "when do tours start?" });
+    expect(unquoted.replies).toEqual([{ kind: "text", text: "Our tours leave from 28 Oct onwards." }]);
   });
 
   it("hands a tapped option's id to the model and books it", async () => {

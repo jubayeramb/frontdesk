@@ -39,8 +39,10 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 | `KAPSO_PHONE_NUMBER_ID` | Kapso's numeric `phone_number_id` for the demo number. Events for any other number are dropped |
 | `KAPSO_WEBHOOK_SECRET` | Verifies `X-Webhook-Signature` on Kapso webhooks. Kapso shows it once, when the webhook is created |
 | `GROQ_API_KEY` | The agent's models on Groq. Tests that don't set `LIVE_LLM=1` never call it |
+| `GROQ_BASE_URL` | Unset outside tests. The e2e run points it at `e2e/fake-groq.ts` |
 | `STAFF_PASSWORD` | The shared password for `/staff` (12+ characters) |
 | `STAFF_SESSION_SECRET` | Signs staff session cookies (32+ characters, `openssl rand -hex 32`). Rotating it, or the password, signs everyone out |
+| `CHAT_COOKIE_SECRET` | Signs the web chat's `fd_conv` cookie (32+ characters). Rotating it starts every visitor on a new conversation |
 
 ### WhatsApp in development
 

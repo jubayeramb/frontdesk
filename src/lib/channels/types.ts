@@ -10,10 +10,13 @@ export type OutboundMessage =
       body: string;
       button: string;
       rows: { id: string; title: string; description?: string }[];
-    };
+    }
+  // A reply the channel shows exactly as the agent made it (the web widget).
+  | { type: "reply"; reply: AgentReply };
 
 export type SendResult =
-  | { ok: true; externalId: string }
+  // `externalId` is null for a channel with no message ids of its own.
+  | { ok: true; externalId: string | null }
   | { ok: false; error: { code: string; message: string } };
 
 export type ReplyPolicy = { canSendFreeForm: boolean; reason?: string };
@@ -27,4 +30,7 @@ export interface ChannelAdapter {
   render(reply: AgentReply): OutboundMessage[];
   // Sends one message. `nonce` is ours, so an echo of it can be told apart.
   send(to: string, message: OutboundMessage, opts: { nonce: string }): Promise<SendResult>;
+  // Tells the customer a reply is coming. Best effort: resolves even when the
+  // channel rejects it. Channels that show this themselves leave it out.
+  showTyping?(inboundExternalId: string): Promise<void>;
 }
