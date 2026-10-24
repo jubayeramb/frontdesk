@@ -42,7 +42,7 @@ describe.skipIf(!LIVE)("live Groq", () => {
           now,
           models,
           onModelResult: (info) => usage.push(info),
-        });
+        }).then((turn) => turn.replies);
 
       it("quotes the database price, then the new price after a staff edit", async () => {
         await seed(db);

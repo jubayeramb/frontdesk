@@ -22,7 +22,7 @@ it("quotes the current price before and after a staff edit", async () => {
       { tools: [{ name: "getQuote", input: { tourSlug: "sundarbans", travelers: 4 } }] },
       { text: answer },
     ]);
-    const replies = await runTurn({
+    const { replies } = await runTurn({
       db,
       conversationId,
       channel: "web",

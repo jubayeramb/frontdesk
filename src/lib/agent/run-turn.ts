@@ -3,6 +3,7 @@ import { generateText, isStepCount, type ModelMessage } from "ai";
 import type { Db } from "@/db/client";
 import type { Channel, Message } from "@/db/schema";
 import { appendMessage, getConversation, loadWindow } from "@/lib/conversations/store";
+import { firstMessage } from "./first-message";
 import { describeError, withFallback, type NamedModel } from "./model";
 import { guardPrices } from "./price-guard";
 import { buildSystemPrompt } from "./prompt";
@@ -13,7 +14,14 @@ export const BUSY_REPLY = "We're busy right now. Try again in a minute.";
 const MAX_STEPS = 5;
 
 // A tap on a button or list row carries the option id; typed text does not.
-export type Inbound = { text: string; choiceId?: string };
+// `externalId` is the channel's id for the message, when it has one.
+export type Inbound = { text: string; choiceId?: string; externalId?: string };
+
+export type TurnResult = {
+  replies: AgentReply[];
+  // The stored message for each reply, in the same order, for delivery.
+  messageIds: number[];
+};
 
 // One customer message in, the agent's replies out. Knows nothing about how a
 // channel delivers them; `channel` only picks a one-line hint in the prompt.
@@ -26,7 +34,7 @@ export async function runTurn(input: {
   models: NamedModel[];
   // Called once per answered turn; usage feeds limits and the write-up.
   onModelResult?: (info: { modelId: string; steps: number; inputTokens: number; outputTokens: number }) => void;
-}): Promise<AgentReply[]> {
+}): Promise<TurnResult> {
   const { db, conversationId, channel, inbound, now } = input;
   const conversation = await getConversation(db, conversationId);
   if (!conversation) throw new Error(`Unknown conversation ${conversationId}`);
@@ -38,6 +46,7 @@ export async function runTurn(input: {
     sentBy: "customer",
     body: inbound.text,
     payload: inbound.choiceId ? { choiceId: inbound.choiceId } : undefined,
+    externalId: inbound.externalId,
   });
 
   const history = await loadWindow(db, conversationId);
@@ -67,7 +76,7 @@ export async function runTurn(input: {
       outputTokens: outcome.value.totalUsage.outputTokens ?? 0,
     });
     const guarded = guardPrices({
-      text: outcome.value.text.trim(),
+      text: firstMessage(outcome.value.text.trim()),
       allowed: record.amounts,
       state: conversation.state,
       turnQuote: record.quote,
@@ -81,8 +90,9 @@ export async function runTurn(input: {
     }
   }
 
+  const messageIds: number[] = [];
   for (const reply of replies) {
-    await appendMessage(db, {
+    const stored = await appendMessage(db, {
       conversationId,
       channel,
       direction: "outbound",
@@ -90,8 +100,9 @@ export async function runTurn(input: {
       body: reply.kind === "choices" ? reply.prompt : reply.text,
       payload: reply,
     });
+    messageIds.push(stored.id);
   }
-  return replies;
+  return { replies, messageIds };
 }
 
 // History as the model sees it. Offered options and picked ids are spelled
@@ -99,7 +110,8 @@ export async function runTurn(input: {
 export function toModelMessages(history: Message[]): ModelMessage[] {
   const out: ModelMessage[] = [];
   for (const message of history) {
-    if (message.sentBy === "system") continue;
+    // A long reply split for a channel is already in history as one message.
+    if (message.sentBy === "system" || message.payload?.continues) continue;
     if (message.sentBy === "customer") {
       const choiceId = message.payload?.choiceId;
       out.push({

@@ -35,9 +35,30 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 |---|---|
 | `DATABASE_URL` | Neon Postgres. Use the pooled connection string |
 | `DATABASE_WS_PROXY` | Only for a local Postgres behind wsproxy, e.g. `localhost:5433/v1` |
+| `KAPSO_API_KEY` | Sends WhatsApp messages through Kapso's Meta proxy |
+| `KAPSO_PHONE_NUMBER_ID` | Kapso's numeric `phone_number_id` for the demo number. Events for any other number are dropped |
+| `KAPSO_WEBHOOK_SECRET` | Verifies `X-Webhook-Signature` on Kapso webhooks. Kapso shows it once, when the webhook is created |
 | `GROQ_API_KEY` | The agent's models on Groq. Tests that don't set `LIVE_LLM=1` never call it |
 | `STAFF_PASSWORD` | The shared password for `/staff` (12+ characters) |
 | `STAFF_SESSION_SECRET` | Signs staff session cookies (32+ characters, `openssl rand -hex 32`). Rotating it, or the password, signs everyone out |
+
+### WhatsApp in development
+
+Kapso needs a public URL for webhooks, so run the app behind a Cloudflare quick tunnel.
+
+1. `pnpm db:migrate && pnpm db:seed` against `DATABASE_URL`.
+2. `pnpm dev --port 3000`, and in another terminal `cloudflared tunnel --url http://localhost:3000`. It prints an `https://<name>.trycloudflare.com` URL, which changes on every run.
+3. Point the number's webhook at the tunnel and make sure it is active, from the Kapso dashboard or with the integrate-whatsapp skill's script (`scripts/list.js --phone-number-id <id>` shows the webhook id):
+   ```sh
+   cd .claude/skills/integrate-whatsapp
+   KAPSO_API_BASE_URL=https://api.kapso.ai KAPSO_API_KEY=$(grep '^KAPSO_API_KEY=' ../../../.env.local | cut -d= -f2-) \
+     node scripts/update.js --phone-number-id <KAPSO_PHONE_NUMBER_ID> --webhook-id <webhook-id> \
+     --url https://<name>.trycloudflare.com/api/webhooks/kapso --active true
+   ```
+   Leave buffering off.
+4. Message the demo number from a phone. `curl -X POST <url>/api/webhooks/kapso` with no signature should return 401.
+
+Kapso's test button sends `"test": true` deliveries. They are acknowledged and dropped, so they never reach the agent.
 
 ### Next.js 16 notes
 
@@ -50,7 +71,8 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 - **The agent core is channel-agnostic.** `src/lib/agent` returns `AgentReply[]` and never imports a channel adapter. The only channel-aware input is a one-line hint in the prompt.
 - **Adapters render and send.** `src/lib/channels` turns `AgentReply[]` into what a channel supports (buttons, lists, numbered text, no markdown on WhatsApp) and sends it. Nothing else calls Kapso's send API.
 - **Prices come only from the database through tools.** The model never states a price or an option that a tool did not return. A presenter builds choice replies from tool results.
-- **Webhooks are verified, deduped, and processed asynchronously in order.** Verify the HMAC on the raw body, store the event once by dedupe key, return 200 fast, then drain per conversation with `FOR UPDATE SKIP LOCKED`.
+- **Webhooks are verified, deduped, and processed asynchronously in order.** Verify the HMAC on the raw body, store the event once by `event_type:message.id`, return 200 fast, then drain each customer's events one at a time in `after()`. A claim takes a transaction-scoped advisory lock on the customer, so two workers never start at once.
+- **Every outbound send is stored before it goes out.** The row gets a nonce and `pending`, then the WhatsApp id or the error. `deliverTurn` is the only path from replies to a channel.
 - **Ownership is stored on the conversation.** The agent never replies while a human owns it. Hand-back or Kapso ending the conversation returns it to the agent.
 - **Free-form WhatsApp sends respect the 24-hour window.** `replyPolicy` decides, not the caller.
 - **The agent stays scoped to Triplone Tours.** It refuses unrelated requests.

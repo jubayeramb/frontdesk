@@ -45,7 +45,7 @@ for await (const raw of rl) {
   const inbound = picked ? { text: picked.label, choiceId: picked.id } : { text: line };
 
   const started = Date.now();
-  const replies = await runTurn({
+  const { replies } = await runTurn({
     db,
     conversationId,
     channel,
