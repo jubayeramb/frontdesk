@@ -62,6 +62,8 @@ export function createKapsoHandler(deps: {
     // Images, reactions and the like stay in the event log; the agent skips them for now.
     if (!inbound) return;
 
+    // Started with the turn, so the round trip to Kapso never adds to the reply time.
+    const typing = deps.adapter.showTyping?.(message.id);
     const turn = await runTurn({
       db: deps.db,
       conversationId: conversation.id,
@@ -70,6 +72,7 @@ export function createKapsoHandler(deps: {
       now: now(),
       models: deps.models,
     });
+    await typing;
     await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to: customer, turn });
   }
 

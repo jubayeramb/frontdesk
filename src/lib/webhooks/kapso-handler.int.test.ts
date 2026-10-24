@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import type { MockLanguageModelV4 } from "ai/test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { conversations, messages, webhookEvents } from "@/db/schema";
 import { seed } from "@/db/seed-data";
@@ -125,11 +125,40 @@ describe("whatsapp.message.received", () => {
     expect(second).not.toContain('"Z"');
   });
 
+  it("shows the typing indicator on the customer's message before the reply", async () => {
+    const { kapso, post } = setup([{ text: "Hi! Which tour are you thinking of?" }]);
+    await post(text("wamid.typing1", "how much is the Sundarbans tour for 2?"));
+
+    expect(kapso.log.map((body) => (body.status === "read" ? "receipt" : "send"))).toEqual(["receipt", "send"]);
+    expect(kapso.receipts[0]).toMatchObject({ status: "read", message_id: "wamid.typing1", typing_indicator: { type: "text" } });
+  });
+
+  it("still replies when Kapso rejects the typing indicator", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { kapso, post } = setup([{ text: "Hello there." }]);
+    kapso.failReceipts(500, { error: { message: "Service unavailable", type: "OAuthException", code: 2 } });
+
+    await post(fixtureRequest("message-received-text"));
+
+    expect(kapso.sends).toHaveLength(1);
+    expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
+    warn.mockRestore();
+  });
+
+  it("does not show the typing indicator again when a retried event skips its turn", async () => {
+    const { kapso, handle, post } = setup([{ text: "Hello there." }]);
+    await post(fixtureRequest("message-received-text"));
+    await db.update(webhookEvents).set({ status: "pending" });
+    await drain(db, CUSTOMER, handle);
+    expect(kapso.receipts).toHaveLength(1);
+  });
+
   it("stores an image without running a turn", async () => {
     const { kapso, model, post } = setup([{ text: "unused" }]);
     await post(fixtureRequest("message-received-image"));
     expect(model.doGenerateCalls).toHaveLength(0);
     expect(kapso.sends).toHaveLength(0);
+    expect(kapso.receipts).toHaveLength(0);
     expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
   });
 });
