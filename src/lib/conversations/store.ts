@@ -141,15 +141,17 @@ export async function loadWindow(
 }
 
 // Shallow-merges into the state; a key in the patch replaces the stored one.
+// `remove` drops keys in the same statement, such as a quote a booking used up.
 export async function updateState(
   db: Db,
   conversationId: string,
   patch: ConversationState,
+  remove: (keyof ConversationState)[] = [],
 ): Promise<void> {
   await db
     .update(conversations)
     .set({
-      state: sql`${conversations.state} || ${JSON.stringify(patch)}::jsonb`,
+      state: sql`(${conversations.state} || ${JSON.stringify(patch)}::jsonb) - ${`{${remove.join(",")}}`}::text[]`,
       updatedAt: sql`now()`,
     })
     .where(eq(conversations.id, conversationId));

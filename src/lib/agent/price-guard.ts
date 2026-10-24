@@ -30,6 +30,13 @@ export function guardPrices(input: {
   return { text: quoteText(input.turnQuote ?? stored), replaced: true };
 }
 
+// A turn that quoted must tell the customer the total; the model sometimes
+// moves straight on to the departures. The quote line goes first.
+export function ensureQuoteTotal(text: string, quote: Quote | undefined): string {
+  if (!quote || findAmounts(text).includes(quote.totalBdt)) return text;
+  return text ? `${quoteText(quote)} ${text}` : quoteText(quote);
+}
+
 export function quoteText(quote: Quote | undefined): string {
   if (!quote) return "I can give you an exact price. Which tour, and how many travelers?";
   return `${quote.tour.name} for ${quote.travelers} ${quote.travelers === 1 ? "traveler" : "travelers"}: ${formatBdt(quote.pricePerPersonBdt)} per person, ${formatBdt(quote.totalBdt)} total.`;
