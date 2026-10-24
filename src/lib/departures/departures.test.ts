@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { listDepartures, parseDepartureId, type DepartureTour } from "./departures";
+import {
+  departureLabel,
+  listDepartures,
+  parseDepartureId,
+  type DepartureTour,
+} from "./departures";
 
 const sundarbans: DepartureTour = {
   slug: "sundarbans",
@@ -66,5 +71,11 @@ describe("parseDepartureId", () => {
     });
     expect(parseDepartureId("sundarbans")).toBeNull();
     expect(parseDepartureId("x:2026-11-5")).toBeNull();
+  });
+});
+
+describe("departureLabel", () => {
+  it("labels a Dhaka date", () => {
+    expect(departureLabel("2026-11-05")).toBe("Thu 5 Nov");
   });
 });
