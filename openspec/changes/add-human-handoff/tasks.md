@@ -9,7 +9,7 @@
 
 - [ ] 2.1 Add `requestHuman` (handoff on WhatsApp, WhatsApp link on web) and `NEXT_PUBLIC_WHATSAPP_NUMBER` to env; verify mock-model tests for both channels
 - [ ] 2.2 Add `not_before` to `webhook_events` and the claim query, and verify an integration test that a deferred event is not claimed early
-- [ ] 2.3 Handle `message.sent` (origin check if the spike found one, id match, deferral, human reply), and verify integration tests on fixtures: our echo before the id is stored stays AI, an unknown id after three checks becomes human
+- [ ] 2.3 Handle `message.sent` (id match, deferral, human reply), and verify integration tests on fixtures: our echo before the id is stored stays AI, an unknown id after three checks becomes human
 - [ ] 2.4 Handle `conversation.ended` and verify an integration test that a human-owned conversation returns to AI
 
 ## 3. Staff page

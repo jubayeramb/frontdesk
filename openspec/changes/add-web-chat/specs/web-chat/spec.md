@@ -10,15 +10,15 @@ Lets a website visitor talk to the front desk in a chat panel, with the same age
 The site SHALL show a chat bubble that opens a chat panel where the visitor can send messages and read the agent's replies.
 
 #### Scenario: First message
-- **WHEN** a new visitor opens the chat and sends "how much for a deep clean?"
+- **WHEN** a new visitor opens the chat and sends "how much is the Sylhet tour?"
 - **THEN** their message appears, a typing indicator shows, and the agent's reply appears below it
 
 ### Requirement: Every reply kind renders natively
 The widget SHALL render `text` replies as message bubbles with basic formatting, `choices` replies as tappable chips, and `link` replies as a button that opens the URL.
 
-#### Scenario: Slot chips
-- **WHEN** the agent returns a `choices` reply with 6 slots
-- **THEN** 6 chips are shown under the prompt
+#### Scenario: Departure chips
+- **WHEN** the agent returns a `choices` reply with 4 departures
+- **THEN** 4 chips are shown under the prompt
 - **AND** tapping one sends that option as the visitor's next message and disables the other chips
 
 ### Requirement: The conversation survives reloads

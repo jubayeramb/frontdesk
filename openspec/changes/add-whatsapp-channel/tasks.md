@@ -18,7 +18,7 @@
 
 ## 3. Real phone
 
-- [ ] 3.1 Run the app behind a tunnel with the Kapso webhook pointed at it, and from a real phone get a quote, see slots as a list, tap one and book it; verify each step and record anything odd in this design
+- [ ] 3.1 Run the app behind a tunnel with the Kapso webhook pointed at it, and from a real phone get a quote, see departures as a list, tap one and book it; verify each step and record anything odd in this design
 - [ ] 3.2 Replay one captured webhook twice with curl and verify the phone receives no second reply
 - [ ] 3.3 Document the tunnel workflow and Kapso env vars in `AGENTS.md`, and verify the steps run as written
 

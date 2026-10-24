@@ -2,12 +2,12 @@
 
 ## Why
 
-Most visitors will meet Front Desk on the website first, and the web is where the demo starts: ask for a price, get an itemized quote, pick a slot.
+Most visitors will meet Front Desk on the website first, and the web is where the demo starts: ask for a price, get a quote, pick a departure.
 The web chat proves the agent core is channel-agnostic, because it renders the same replies WhatsApp gets, natively.
 
 ## What Changes
 
-- Replace the placeholder home page with the Mopwell landing page: services, how booking works, the demo banner and a privacy note.
+- Replace the placeholder home page with the Triplone Tours landing page: the three tours, how booking works, the demo banner and a privacy note.
 - Add the chat widget: a floating bubble that opens a panel, renders `text`, `choices` (as chips), `handoff` and `link` replies, and works with a keyboard and a screen reader.
 - Add the web adapter (renders every reply natively, sends by returning JSON) and `POST /api/chat`.
 - Keep the visitor's conversation in a signed, `httpOnly` cookie, and restore the transcript when the widget reopens.
@@ -25,7 +25,7 @@ Independent of add-whatsapp-channel apart from the shared adapter interface it i
 ### New Capabilities
 
 - `web-chat`: the chat widget, the chat API, and how a web visitor's conversation is kept.
-- `demo-site`: the public Mopwell pages, the demo banner, and the privacy note.
+- `demo-site`: the public Triplone Tours pages, the demo banner, and the privacy note.
 
 ### Modified Capabilities
 

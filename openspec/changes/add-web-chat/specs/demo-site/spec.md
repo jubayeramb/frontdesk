@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Presents Mopwell Cleaning as a believable small business while making it impossible to mistake the demo for a real one.
+Presents Triplone Tours as a believable small tour agency while making it impossible to mistake the demo for a real one.
 
 ## ADDED Requirements
 
@@ -15,7 +15,7 @@ No real bookings." at the top, visible without scrolling.
 - **THEN** the banner is the first thing on the page
 
 ### Requirement: Landing page explains the business
-The landing page SHALL describe Mopwell's services, the area served (Austin, TX), and how to get a quote and book through the chat, without listing prices that could drift from the database.
+The landing page SHALL describe the three tours, that the agency is based in Dhaka, and how to get a quote and book through the chat, without listing prices that could drift from the database.
 
 #### Scenario: Visitor looks for prices
 - **WHEN** a visitor reads the landing page

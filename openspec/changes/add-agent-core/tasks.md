@@ -8,7 +8,7 @@
 ## 2. Model and tools
 
 - [ ] 2.1 Add `ai` and `@ai-sdk/groq`, `GROQ_API_KEY` in env schema and `.env.example`, and `src/lib/agent/model.ts` with `withFallback`; verify unit tests that a 429 and a 503 move to the next model, a 400 does not, and two failures return the busy result
-- [ ] 2.2 Implement the tools (`listServices`, `getQuote`, `listSlots`, `bookSlot`) with zod input schemas and the per-turn choices collector; verify unit tests that each tool returns data and pushes the expected `choices`
+- [ ] 2.2 Implement the tools (`listTours`, `getQuote`, `listDepartures`, `bookDeparture`) with zod input schemas and the per-turn choices collector; verify unit tests that each tool returns data and pushes the expected `choices`
 - [ ] 2.3 Write the scoped system prompt and channel hints, and verify a unit test that the prompt stays under a fixed token budget
 
 ## 3. runTurn

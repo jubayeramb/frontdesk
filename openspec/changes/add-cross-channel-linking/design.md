@@ -19,8 +19,8 @@ The web branch of `requestHuman` returns a plain `wa.me` link (add-human-handoff
 
 ### Code format
 
-`MW-` plus 6 characters from Crockford base32 without `I`, `L`, `O`, `U` (32 symbols, about 1 billion codes).
-Parsing is case-insensitive and tolerates spaces after `MW-`.
+`TR-` plus 6 characters from Crockford base32 without `I`, `L`, `O`, `U` (32 symbols, about 1 billion codes).
+Parsing is case-insensitive and tolerates spaces after `TR-`.
 `link_codes(code pk, conversation_id, expires_at, used_at, used_by_identity)`.
 
 ### Link transaction
@@ -51,6 +51,6 @@ Nicer, but long-lived connections on serverless cost more than 5-second polls fo
 
 ## Risks / Trade-offs
 
-- [Someone guesses a code] → 1 billion codes, 15 minutes, single use; a guess also only joins a stranger's cleaning quote, which holds no personal data by design.
+- [Someone guesses a code] → 1 billion codes, 15 minutes, single use; a guess also only joins a stranger's tour quote, which holds no personal data by design.
 - [Visitor edits the prefilled message and deletes the code] → They get a fresh WhatsApp conversation; the web history is not lost, only unlinked.
 - [Re-pointing an identity hides an older WhatsApp conversation from the agent] → It is closed, not deleted, and still visible in Kapso's inbox.

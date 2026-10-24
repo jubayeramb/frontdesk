@@ -1,0 +1,12 @@
+{
+  "description": "First message from a new contact opens a conversation.",
+  "capturedAt": "2026-10-24T05:22:52.653Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.conversation.created",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "2deb1dca931b91d4c03255a065df7d59479d231cb8ddb4e7051ea818c2ad7f1e",
+    "x-webhook-signature": "2149a1fcc3cb725f004179bf457a3d7b06b90fbc54aae6a1b3d3fea7bd9062d1"
+  },
+  "body": "{\"conversation\":{\"id\":\"587da297-2527-4b23-aff8-fe5735205deb\",\"kapso\":{\"messages_count\":1,\"last_inbound_at\":\"2026-10-24T05:22:52.121602Z\",\"last_message_id\":\"wamid.HBgNODgwMTcwMDAwMDAwMBUCABIYIEE1OTg5RTBCOENCMUVFQjhBNjE2QUMwQ0U4MkUxNTIzAA==\",\"last_message_text\":\"Hello\",\"last_message_type\":\"text\",\"last_message_timestamp\":\"2026-10-24T05:22:52.121602Z\"},\"status\":\"active\",\"metadata\":{},\"username\":\"testcustomer\",\"created_at\":\"2026-10-24T02:22:52-03:00\",\"updated_at\":\"2026-10-24T02:22:52-03:00\",\"contact_name\":\"Test Customer\",\"phone_number\":\"8801700000000\",\"last_active_at\":\"2026-10-24T02:22:52-03:00\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000001\",\"parent_business_scoped_user_id\":null},\"phone_number_id\":\"1382322134966757\"}"
+}

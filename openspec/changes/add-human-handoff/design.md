@@ -3,7 +3,8 @@
 ## Context
 
 Outbound WhatsApp messages are stored before sending with a `client_nonce`, then get their `external_id` (add-whatsapp-channel).
-Per the Kapso docs, `message.kapso.origin` is `cloud_api` for anything sent through Kapso's API, which likely includes inbox replies; the spike records whether any field tells them apart.
+The spike confirmed that an inbox reply is identical to an API send in the webhook and in Kapso's message API: same `origin` (`cloud_api`, which inbound messages also carry), same fields, same headers.
+Matching message ids is the only way to tell them apart.
 Kapso ends a conversation on agent action, manual closure, or 24 hours of inactivity.
 
 ## Goals / Non-Goals
@@ -33,11 +34,10 @@ The drain handler re-reads the owner inside the claim transaction and skips the 
 ### Human detection
 
 On `message.sent` with direction `outbound`:
-1. If the spike found a field that marks inbox sends, use it.
-2. Otherwise look up `messages.external_id`.
+1. Look up `messages.external_id`.
    Found means ours: done.
-3. Not found, and the conversation has an outbound row with `external_id IS NULL` created in the last 30 seconds: defer the event by 5 seconds (`not_before = now() + 5s`, status back to `pending`) and check again, at most 3 times.
-4. Still not found: it is a human reply.
+2. Not found, and the conversation has an outbound row with `external_id IS NULL` created in the last 30 seconds: defer the event by 5 seconds (`not_before = now() + 5s`, status back to `pending`) and check again, at most 3 times.
+3. Still not found: it is a human reply.
    Store it as sender `human` and apply `human_replied`.
 
 The drain claim query adds `AND (not_before IS NULL OR not_before <= now())`.

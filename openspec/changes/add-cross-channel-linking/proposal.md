@@ -7,8 +7,8 @@ Without a link between the two, a visitor who moves to WhatsApp starts over, and
 
 ## What Changes
 
-- Add one-time link codes (`MW-` plus 6 characters, valid 15 minutes, single use).
-- Add the `continueOnWhatsApp` tool (web only): it creates a code and returns a `wa.me` link with "Hi! My code is MW-XXXXXX" prefilled.
+- Add one-time link codes (`TR-` plus 6 characters, valid 15 minutes, single use).
+- Add the `continueOnWhatsApp` tool (web only): it creates a code and returns a `wa.me` link with "Hi! My code is TR-XXXXXX" prefilled.
 - When a WhatsApp message contains a valid code, attach that WhatsApp number to the web visitor's contact and continue the same conversation, quote included.
 - `requestHuman` on the web now uses the coded link, so the person who answers on WhatsApp sees the web history.
 - Add `/c`: the visitor's own read-only timeline across both channels, with who owns the conversation and "A person will reply" when a human does.

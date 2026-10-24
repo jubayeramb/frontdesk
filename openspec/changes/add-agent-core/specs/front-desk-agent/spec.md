@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Answers each customer message for Mopwell Cleaning with replies grounded in live data, the same way on every channel.
+Answers each customer message for Triplone Tours with replies grounded in live data, the same way on every channel.
 
 ## ADDED Requirements
 
@@ -10,38 +10,38 @@ Answers each customer message for Mopwell Cleaning with replies grounded in live
 The agent SHALL state a price only when that price was returned by the quote tool during the current turn or stored as the conversation's latest quote, and SHALL never state a price from memory.
 
 #### Scenario: Customer asks for a price
-- **WHEN** a customer with no quote yet asks "how much for a 3 bed 2 bath standard clean?"
+- **WHEN** a customer with no quote yet asks "how much is the Sundarbans tour for 4 people?"
 - **THEN** the agent calls the quote tool with those inputs
 - **AND** the reply contains the tool's total and no other amount
 
 #### Scenario: Missing details
-- **WHEN** a customer asks "how much is a cleaning?" without home details
-- **THEN** the agent asks for the service, bedrooms and bathrooms instead of guessing a price
+- **WHEN** a customer asks "how much is a tour?" without saying which tour or how many people
+- **THEN** the agent asks which tour and how many travelers instead of guessing a price
 
 #### Scenario: Price changed between turns
 - **WHEN** staff change a price after a quote and the customer asks for the quote again
 - **THEN** the agent calls the quote tool again and the reply shows the new total and the new price list version
 
 ### Requirement: Choices come only from tool results
-When the agent offers a set of options (services, add-ons or slots), the system SHALL build that `choices` reply from the tool result, with one option per returned item and ids that the tool accepts back.
+When the agent offers a set of options (tours or departures), the system SHALL build that `choices` reply from the tool result, with one option per returned item and ids that the tool accepts back.
 
-#### Scenario: Offering slots
-- **WHEN** the agent calls the slot tool and 6 slots are free
-- **THEN** the turn returns a `choices` reply with exactly those 6 slots as options
+#### Scenario: Offering departures
+- **WHEN** the agent calls the departures tool and 4 departures are offered
+- **THEN** the turn returns a `choices` reply with exactly those 4 departures as options
 
 #### Scenario: Customer picks an option
 - **WHEN** the next inbound message is the id of one of those options
 - **THEN** the agent treats it as that choice without asking again
 
 ### Requirement: Booking confirms only what was stored
-The agent SHALL confirm a booking only after the booking tool reports success, and SHALL offer other slots when the tool reports the slot was taken.
+The agent SHALL confirm a booking only after the booking tool reports success, and SHALL offer the current departures when the tool reports a departure is unavailable.
 
-#### Scenario: Slot taken
-- **WHEN** the booking tool returns "taken"
-- **THEN** the agent says that slot just went and offers the current free slots
+#### Scenario: Departure no longer offered
+- **WHEN** the booking tool returns "unavailable" because the departure is now within 48 hours
+- **THEN** the agent says so and offers the current departures
 
-### Requirement: Scoped to Mopwell
-The agent SHALL only help with Mopwell's cleaning services, quotes, bookings and contacting a person, and SHALL politely refuse anything else in one or two sentences.
+### Requirement: Scoped to Triplone Tours
+The agent SHALL only help with Triplone Tours' tours, quotes, bookings and contacting a person, and SHALL politely refuse anything else in one or two sentences.
 
 #### Scenario: Off-topic request
 - **WHEN** a customer asks the agent to write a poem or answer a general question
@@ -71,6 +71,6 @@ The system SHALL retry a turn on the fallback model when the primary model is ra
 ### Requirement: Tool failures do not leak
 When a tool fails or returns a validation error, the agent SHALL tell the customer what it needs or that something went wrong, and SHALL never show a stack trace, SQL, or internal ids.
 
-#### Scenario: Invalid bedroom count
-- **WHEN** the quote tool rejects 9 bedrooms
-- **THEN** the agent says it can quote 1 to 5 bedrooms and asks again
+#### Scenario: Too many travelers
+- **WHEN** the quote tool rejects 15 travelers
+- **THEN** the agent says bookings take 1 to 10 travelers and asks again

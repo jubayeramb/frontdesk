@@ -9,9 +9,9 @@ If the agent knew which transport it was on, every channel would grow its own co
 
 - Add the conversation store: `contacts`, `channel_identities`, `conversations` and `messages`, with every message tagged by channel.
 - Add `runTurn({ conversationId, inbound })`, which loads recent history plus a short state summary, calls the model with tools, and returns a list of channel-neutral replies (`text`, `choices`, `handoff`, `link`).
-- Add tools: `listServices`, `getQuote`, `listSlots`, `bookSlot`.
+- Add tools: `listTours`, `getQuote`, `listDepartures`, `bookDeparture`.
   Tools return data; a presenter turns tool results into `choices` replies, so options and prices always come from the database.
-- Add a scoped system prompt: Mopwell only, unrelated requests are refused.
+- Add a scoped system prompt: Triplone Tours only, unrelated requests are refused.
 - Add the model module: primary and fallback Groq models, fallback on rate limits and server errors, and a fixed "busy" reply when both fail.
 - Add a local `pnpm agent:chat` REPL to talk to the agent without any channel.
 - Add the foreign key from `bookings.conversation_id` to `conversations`.
