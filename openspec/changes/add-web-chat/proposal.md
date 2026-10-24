@@ -35,4 +35,4 @@ None.
 
 - New: `src/app/page.tsx` rewrite, `src/components/chat/`, `src/lib/channels/web.ts`, `src/app/api/chat/route.ts`.
 - `src/app/globals.css` dark variant changes from a class to `prefers-color-scheme`.
-- New env var: `CHAT_COOKIE_SECRET`.
+- New env vars: `CHAT_COOKIE_SECRET`, and `GROQ_BASE_URL` (set only by the e2e run).

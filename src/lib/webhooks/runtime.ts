@@ -11,4 +11,4 @@ export const whatsapp = createWhatsAppAdapter({
   phoneNumberId: env.KAPSO_PHONE_NUMBER_ID,
 });
 
-export const handleKapsoEvent = createKapsoHandler({ db, adapter: whatsapp, models: groqModels(env.GROQ_API_KEY) });
+export const handleKapsoEvent = createKapsoHandler({ db, adapter: whatsapp, models: groqModels(env.GROQ_API_KEY, env.GROQ_BASE_URL) });

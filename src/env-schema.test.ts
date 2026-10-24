@@ -10,6 +10,7 @@ const valid = {
   KAPSO_WEBHOOK_SECRET: "test-webhook-secret",
   STAFF_PASSWORD: "correct-horse-battery",
   STAFF_SESSION_SECRET: "a".repeat(32),
+  CHAT_COOKIE_SECRET: "b".repeat(32),
 };
 
 describe("parseEnv", () => {
@@ -31,6 +32,9 @@ describe("parseEnv", () => {
     );
     expect(() => parseEnv({ ...valid, STAFF_SESSION_SECRET: "short" })).toThrow(
       /STAFF_SESSION_SECRET: Use at least 32 characters/,
+    );
+    expect(() => parseEnv({ ...valid, CHAT_COOKIE_SECRET: "short" })).toThrow(
+      /CHAT_COOKIE_SECRET: Use at least 32 characters/,
     );
   });
 

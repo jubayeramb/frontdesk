@@ -7,8 +7,8 @@ export const FALLBACK_MODEL_ID = "openai/gpt-oss-20b";
 
 export type NamedModel = { id: string; model: LanguageModel };
 
-export function groqModels(apiKey: string): NamedModel[] {
-  const groq = createGroq({ apiKey });
+export function groqModels(apiKey: string, baseURL?: string): NamedModel[] {
+  const groq = createGroq({ apiKey, baseURL });
   return [PRIMARY_MODEL_ID, FALLBACK_MODEL_ID].map((id) => ({ id, model: groq(id) }));
 }
 

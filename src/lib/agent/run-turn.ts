@@ -2,7 +2,7 @@ import { generateText, isStepCount, type ModelMessage } from "ai";
 
 import type { Db } from "@/db/client";
 import type { Channel, Message } from "@/db/schema";
-import { appendMessage, getConversation, loadWindow } from "@/lib/conversations/store";
+import { appendMessage, appendMessages, getConversation, loadWindow } from "@/lib/conversations/store";
 import { firstMessage } from "./first-message";
 import { describeError, withFallback, type NamedModel } from "./model";
 import { guardPrices } from "./price-guard";
@@ -14,8 +14,9 @@ export const BUSY_REPLY = "We're busy right now. Try again in a minute.";
 const MAX_STEPS = 5;
 
 // A tap on a button or list row carries the option id; typed text does not.
-// `externalId` is the channel's id for the message, when it has one.
-export type Inbound = { text: string; choiceId?: string; externalId?: string };
+// `externalId` is the channel's id for the message, when it has one, and
+// `clientNonce` the sender's own, so a resubmission is stored once.
+export type Inbound = { text: string; choiceId?: string; externalId?: string; clientNonce?: string };
 
 export type TurnResult = {
   replies: AgentReply[];
@@ -47,6 +48,7 @@ export async function runTurn(input: {
     body: inbound.text,
     payload: inbound.choiceId ? { choiceId: inbound.choiceId } : undefined,
     externalId: inbound.externalId,
+    clientNonce: inbound.clientNonce,
   });
 
   const history = await loadWindow(db, conversationId);
@@ -90,19 +92,19 @@ export async function runTurn(input: {
     }
   }
 
-  const messageIds: number[] = [];
-  for (const reply of replies) {
-    const stored = await appendMessage(db, {
+  const stored = await appendMessages(
+    db,
+    conversationId,
+    replies.map((reply) => ({
       conversationId,
       channel,
-      direction: "outbound",
-      sentBy: "ai",
+      direction: "outbound" as const,
+      sentBy: "ai" as const,
       body: reply.kind === "choices" ? reply.prompt : reply.text,
       payload: reply,
-    });
-    messageIds.push(stored.id);
-  }
-  return { replies, messageIds };
+    })),
+  );
+  return { replies, messageIds: stored.map((m) => m.id) };
 }
 
 // History as the model sees it. Offered options and picked ids are spelled

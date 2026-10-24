@@ -45,6 +45,26 @@ Replies are announced with an `aria-live="polite"` region.
 
 Change `@custom-variant dark` in `globals.css` to `(@media (prefers-color-scheme: dark))`, so the shadcn tokens follow the system.
 
+### Web sends go through the outbox
+
+The web adapter renders each reply as a `reply` message (a new `OutboundMessage` kind that carries the `AgentReply` untouched), and its `send` returns success with no channel id.
+The route still calls `deliverTurn`, so every channel's replies are stored, marked sent and delivered the same way.
+`SendResult.externalId` became `string | null` for this.
+
+### Resubmissions
+
+The nonce index is `messages_conversation_nonce`, unique on `(conversation_id, client_nonce)`.
+A turn's replies are stored in one insert, so a duplicate request never sees half a turn.
+A duplicate waits up to 20 seconds for the first request's replies, then answers 409 so the widget offers a retry with the same nonce.
+A stored message older than 75 seconds with no replies belongs to a turn that died with its worker; a resubmission deletes it and runs the turn again.
+A `choiceId` counts only if the last choices reply offered it, so a client cannot put a picked option in the agent's history.
+
+### Model in end-to-end tests
+
+The e2e run uses a production build, where Playwright cannot intercept server-side fetches.
+`e2e/fake-groq.ts` is a small OpenAI-compatible server with a fixed script, and the optional `GROQ_BASE_URL` points the app at it.
+The real turn loop, tools and price guard run; only the model is scripted.
+
 ### Landing page
 
 Server component, static content only, no prices.

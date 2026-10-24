@@ -30,6 +30,8 @@ export function createWhatsAppAdapter(config: {
           buttonText: message.button,
           sections: [{ rows: message.rows }],
         });
+      case "reply":
+        throw new Error("WhatsApp sends rendered messages, never raw replies");
     }
   }
 
