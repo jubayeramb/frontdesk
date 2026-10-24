@@ -21,6 +21,20 @@ When a WhatsApp customer asks for a person, the system SHALL set the owner to `h
 - **THEN** the customer receives "A person will reply here soon."
 - **AND** the owner is `human`
 
+### Requirement: Booking changes and cancellations go to a person
+The agent SHALL not change or cancel bookings.
+When a customer asks to change a booking's date or travelers, or to cancel it, the agent SHALL hand off as if they asked for a person (on WhatsApp the owner becomes `human`; on the web the visitor gets the WhatsApp link), and SHALL not offer a new booking in place of the change.
+
+#### Scenario: Customer asks to cancel on WhatsApp
+- **WHEN** a WhatsApp customer with a booking writes "please cancel my booking"
+- **THEN** the customer is told a person will handle the cancellation
+- **AND** the owner is `human`
+
+#### Scenario: Customer asks to move a booking
+- **WHEN** a customer with a booking writes "can we move our booking to the next date?"
+- **THEN** no departures are offered and no booking is made
+- **AND** the conversation is handed to a person
+
 ### Requirement: Web visitors are sent to WhatsApp for a person
 A web conversation SHALL never be answered by a person.
 When a web visitor asks for a person, the agent SHALL reply with a link that opens a WhatsApp chat with Triplone Tours, and the web conversation SHALL stay owned by `ai`.
