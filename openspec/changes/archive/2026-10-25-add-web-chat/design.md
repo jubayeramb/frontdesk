@@ -36,7 +36,9 @@ An invalid signature is treated as no cookie.
 
 ### Widget
 
-Client component under `src/components/chat/`, built from shadcn primitives (`Button`, `Sheet` on phones, a popover panel on desktop).
+Client component under `src/components/chat/`, built on one Base UI `Dialog` with shadcn's `Button` and `Input`.
+On phones the dialog is modal and fills the screen; on wider screens it is a non-modal panel at the bottom right that stays open while the visitor reads or clicks the page.
+The transcript loads the first time the panel opens.
 Messages render from a local list seeded by `GET /api/chat`; a send appends optimistically, then appends replies.
 Text replies render a small markdown subset (bold, lists, links) through a tiny renderer, not `dangerouslySetInnerHTML`.
 Replies are announced with an `aria-live="polite"` region.
