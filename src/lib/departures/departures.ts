@@ -41,10 +41,19 @@ export function listDepartures(tour: DepartureTour, now: Date): Departure[] {
       tourSlug: tour.slug,
       departsOn,
       departsAt,
-      label: labelFormat.format(departsAt).replace(",", ""),
+      label: formatLabel(departsAt),
     });
   }
   return departures;
+}
+
+// "2026-11-05" -> "Thu 5 Nov"
+export function departureLabel(departsOn: string): string {
+  return formatLabel(new Date(`${departsOn}T${String(DEPARTURE_HOUR).padStart(2, "0")}:00:00+06:00`));
+}
+
+function formatLabel(departsAt: Date): string {
+  return labelFormat.format(departsAt).replace(",", "");
 }
 
 export function departureId(tourSlug: string, departsOn: string): string {

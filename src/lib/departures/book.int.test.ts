@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import { expect, it } from "vitest";
 
 import { bookings } from "@/db/schema";
@@ -7,6 +5,7 @@ import { seed } from "@/db/seed-data";
 import { getPriceList } from "@/lib/pricing/price-list";
 import { computeQuote, type Quote } from "@/lib/pricing/quote";
 import { setupTestDb } from "../../../test/int/db";
+import { newConversation } from "../../../test/int/fixtures";
 import { bookDeparture } from "./book";
 
 const db = setupTestDb();
@@ -21,7 +20,7 @@ async function sundarbansQuote(travelers: number): Promise<Quote> {
 
 it("stores a booking for an offered departure with the quote snapshot", async () => {
   await seed(db);
-  const conversationId = randomUUID();
+  const { id: conversationId } = await newConversation(db);
   const quote = await sundarbansQuote(4);
 
   const result = await bookDeparture(db, {
@@ -48,7 +47,7 @@ it.each([
 ])("refuses %s and stores nothing", async (_label, departureId) => {
   await seed(db);
   const result = await bookDeparture(db, {
-    conversationId: randomUUID(),
+    conversationId: (await newConversation(db)).id,
     departureId,
     quote: await sundarbansQuote(2),
     now,
@@ -60,7 +59,7 @@ it.each([
 it("refuses a quote for a different tour", async () => {
   await seed(db);
   const result = await bookDeparture(db, {
-    conversationId: randomUUID(),
+    conversationId: (await newConversation(db)).id,
     departureId: "sylhet:2026-11-06",
     quote: await sundarbansQuote(2),
     now,

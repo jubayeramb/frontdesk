@@ -21,10 +21,13 @@ Nothing here takes real bookings.
 | `pnpm db:generate` | Generate a migration from `src/db/schema.ts` |
 | `pnpm db:migrate` | Apply migrations to `DATABASE_URL` through the app's own driver |
 | `pnpm db:seed` | Load the default tours and price list (safe to rerun, keeps staff edits) |
+| `pnpm agent:chat` | Talk to the agent in the terminal on a fresh conversation (`--channel whatsapp` for the WhatsApp hint). Numbers pick an option, `/new` starts over, `/quit` leaves. Calls Groq for real |
+| `LIVE_LLM=1 pnpm test:int` | Also run the live agent tests against Groq on both models. They pause 15 seconds between tests to stay under the per-minute token limit |
 | `pnpm spec:validate` | `openspec validate --all --strict` |
 
 Copy `.env.example` to `.env.local` before running anything that touches the database.
 `pnpm test:int` and `pnpm test:e2e` need `pnpm db:test:up` first; they never touch `DATABASE_URL`.
+`pnpm agent:chat` uses `DATABASE_URL`, so run `pnpm db:migrate && pnpm db:seed` against it first.
 
 ### Environment
 
@@ -32,6 +35,7 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 |---|---|
 | `DATABASE_URL` | Neon Postgres. Use the pooled connection string |
 | `DATABASE_WS_PROXY` | Only for a local Postgres behind wsproxy, e.g. `localhost:5433/v1` |
+| `GROQ_API_KEY` | The agent's models on Groq. Tests that don't set `LIVE_LLM=1` never call it |
 | `STAFF_PASSWORD` | The shared password for `/staff` (12+ characters) |
 | `STAFF_SESSION_SECRET` | Signs staff session cookies (32+ characters, `openssl rand -hex 32`). Rotating it, or the password, signs everyone out |
 
@@ -50,6 +54,10 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 - **Ownership is stored on the conversation.** The agent never replies while a human owns it. Hand-back or Kapso ending the conversation returns it to the agent.
 - **Free-form WhatsApp sends respect the 24-hour window.** `replyPolicy` decides, not the caller.
 - **The agent stays scoped to Triplone Tours.** It refuses unrelated requests.
+- **Tools do the math.** Tools take raw inputs (tour, travelers, departure id) and compute totals in code. The model never adds or multiplies.
+- **A price guard checks every reply.** Any currency amount that no tool returned this turn, and that isn't the stored quote or booking, replaces the reply with one built from the quote.
+- **Model failover is in code.** `withFallback` moves from `openai/gpt-oss-120b` to `openai/gpt-oss-20b` on a 429, 5xx or network error, with SDK retries off. If both fail, the customer gets the busy reply.
+- **The model sees 20 messages.** Older context lives in the conversation's `state` (latest quote and booking), which goes into the system prompt.
 - **The business side stays minimal.** Tours, a per-person price in BDT, departures and bookings. Spend effort on the Kapso and agent parts, not on tour operations.
 
 ## OpenSpec workflow

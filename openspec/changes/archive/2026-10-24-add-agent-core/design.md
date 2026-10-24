@@ -54,13 +54,13 @@ This guard is what makes the pricing spec hold even when the model misbehaves.
 
 ### Model module
 
-`src/lib/agent/model.ts` exports the ordered model list and `withFallback(fn)`.
+`src/lib/agent/model.ts` exports the ordered model list and `withFallback(models, fn)`.
 It retries once on the next model for HTTP 429 and 5xx, never on 4xx validation errors.
 A step limit of 5 keeps one turn from burning the per-minute token budget.
 
 ### History window
 
-Load the last 20 messages for the conversation (all channels), map them to model messages, and prepend a system message with the state summary (latest quote, booking, preferred service).
+Load the last 20 messages for the conversation (all channels), map them to model messages, and prepend a system message with the state summary (latest quote and booking).
 Choice selections are stored as the option label, with the id in the payload, so history reads naturally.
 
 ### Persistence
@@ -71,6 +71,8 @@ The adapter later fills in each outbound message's external id.
 ## Risks / Trade-offs
 
 - [Groq free-tier limits are tight] → Short prompt, terse tool descriptions, 20-message window, step limit 5; measure token usage per turn in the live test and record it.
+  Measured on `openai/gpt-oss-120b` in a four-turn quote and booking: 1.4K to 2.1K input tokens and 100 to 150 output tokens per turn, two steps each, about 1 to 1.5 seconds.
+  Input grows about 200 tokens a turn, so a full 20-message window should stay under 4K, which still allows two turns a minute per model.
 - [Fallback model is weaker at tool calls] → The live test runs on both models; if the fallback fails the pricing scenario, drop it and send the busy reply instead.
 - [The amount guard rejects a legitimate amount] → It only checks amounts that look like currency, and every legitimate amount comes from a tool, so a false positive means the prompt needs fixing; it falls back to the code-built quote, never to silence.
 

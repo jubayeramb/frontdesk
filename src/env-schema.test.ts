@@ -4,6 +4,7 @@ import { parseEnv } from "./env-schema";
 
 const valid = {
   DATABASE_URL: "postgres://u:p@localhost:5432/db",
+  GROQ_API_KEY: "gsk_test",
   STAFF_PASSWORD: "correct-horse-battery",
   STAFF_SESSION_SECRET: "a".repeat(32),
 };
