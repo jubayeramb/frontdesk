@@ -4,7 +4,7 @@
 
 - [x] 1.1 Add `docker-compose.yml` with `postgres:17` and Neon `wsproxy`, plus `db:test:up` and `db:test:down` scripts, and verify `pnpm db:test:up` starts both and `psql` connects
 - [x] 1.2 Add a Vitest setup for integration tests (`*.int.test.ts`, separate `test:int` script) that points the Neon driver at the local proxy, migrates a fresh database and truncates between tests; verify a trivial `select 1` test passes
-- [ ] 1.3 Add the Postgres and wsproxy services to CI and run `test:int`; verify the workflow passes on a branch push
+- [x] 1.3 Add the Postgres and wsproxy services to CI and run `test:int`; verify the workflow passes on a branch push
 
 ## 2. Pricing
 
