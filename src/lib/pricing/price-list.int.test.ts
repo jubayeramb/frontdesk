@@ -57,6 +57,17 @@ describe("updatePrices", () => {
     expect(list.tours.find((t) => t.slug === "sylhet")?.pricePerPersonBdt).toBe(8_500);
   });
 
+  it("deactivating a tour stops it being quoted", async () => {
+    await seed(db);
+    await updatePrices(db, [{ slug: "bandarban", pricePerPersonBdt: 12_000, active: false }]);
+    const list = await getPriceList(db);
+    expect(list.tours.find((t) => t.slug === "bandarban")?.active).toBe(false);
+    expect(computeQuote(list, { tourSlug: "bandarban", travelers: 2 })).toMatchObject({
+      ok: false,
+      error: { code: "inactive_tour" },
+    });
+  });
+
   it("rolls back every edit if one tour is unknown", async () => {
     await seed(db);
     await expect(

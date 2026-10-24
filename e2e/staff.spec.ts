@@ -80,3 +80,21 @@ test("sign-in works before JavaScript loads", async ({ browser }) => {
   await expect(page).toHaveURL(/\/staff\/pricing$/);
   await context.close();
 });
+
+test("saving without a session is refused and nothing changes", async ({ page, context }) => {
+  await page.goto("/staff/pricing");
+  await signIn(page);
+  const price = page.getByRole("textbox", { name: "Sundarbans 3-day boat tour price per person in taka" });
+  await expect(price).toHaveValue("14500");
+
+  // The session ends while the form is still open.
+  await context.clearCookies();
+  await price.fill("1");
+  await page.getByRole("button", { name: "Save prices" }).click();
+  await expect(page).toHaveURL(/\/staff\/sign-in/);
+
+  // Signing back in lands on pricing, where the old price is still in place.
+  await signIn(page);
+  await expect(page).toHaveURL(/\/staff\/pricing$/);
+  await expect(price).toHaveValue("14500");
+});
