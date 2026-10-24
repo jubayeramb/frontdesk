@@ -16,7 +16,7 @@ The spike's findings that shape this design: one `X-Idempotency-Key` covers a wh
 - A general job queue.
   One table and one claim query cover this load.
 - WhatsApp Flows.
-  Buttons and lists are enough for slots.
+  Buttons and lists are enough for tours and departures.
 
 ## Decisions
 

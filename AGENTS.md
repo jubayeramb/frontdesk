@@ -1,6 +1,6 @@
 # Front Desk
 
-Front Desk is one AI agent that answers customers on web chat and WhatsApp for a made-up home-cleaning business, Mopwell Cleaning (demo) in Austin, TX.
+Front Desk is one AI agent that answers customers on web chat and WhatsApp for a made-up tour agency, Triplone Tours (demo) in Dhaka, Bangladesh.
 It covers the hard parts of an omnichannel agent: one agent across two channels, replies that degrade per channel, AI and human ownership with handoff, and WhatsApp's 24-hour reply window.
 WhatsApp runs through Kapso, and people reply from Kapso's inbox embedded at `/staff`.
 Nothing here takes real bookings.
@@ -30,7 +30,8 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 - **Webhooks are verified, deduped, and processed asynchronously in order.** Verify the HMAC on the raw body, store the event once by dedupe key, return 200 fast, then drain per conversation with `FOR UPDATE SKIP LOCKED`.
 - **Ownership is stored on the conversation.** The agent never replies while a human owns it. Hand-back or Kapso ending the conversation returns it to the agent.
 - **Free-form WhatsApp sends respect the 24-hour window.** `replyPolicy` decides, not the caller.
-- **The agent stays scoped to Mopwell.** It refuses unrelated requests.
+- **The agent stays scoped to Triplone Tours.** It refuses unrelated requests.
+- **The business side stays minimal.** Tours, a per-person price in BDT, departures and bookings. Spend effort on the Kapso and agent parts, not on tour operations.
 
 ## OpenSpec workflow
 

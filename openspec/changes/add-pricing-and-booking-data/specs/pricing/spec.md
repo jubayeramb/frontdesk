@@ -2,64 +2,45 @@
 
 ## Purpose
 
-Holds Mopwell's current prices and turns a customer's home details into an itemized quote that always matches the latest saved price list.
+Holds Triplone Tours' current tour prices and turns a customer's tour and group size into a quote that always matches the latest saved price list.
 
 ## ADDED Requirements
 
-### Requirement: Itemized quote from the current price list
-The system SHALL compute a quote from a service, a bedroom count, a bathroom count and optional add-ons, using the price list stored at the moment of the request.
-The quote SHALL list each line item with its amount, the total, and the price list version used.
+### Requirement: Quote from the current price list
+The system SHALL compute a quote from a tour and a number of travelers, using the per-person price stored at the moment of the request.
+The quote SHALL show the per-person price, the number of travelers, the total in BDT, and the price list version used.
 
-#### Scenario: Standard clean with an extra bathroom and an add-on
-- **WHEN** a quote is requested for a standard clean, 3 bedrooms, 2 bathrooms and the oven add-on
-- **THEN** the quote lists the 3-bedroom base price, one extra bathroom, and the oven add-on, each with its stored amount
-- **AND** the total equals the sum of the line items
+#### Scenario: Group of four
+- **WHEN** a quote is requested for the Sundarbans tour for 4 travelers and its stored price is ৳14,500 per person
+- **THEN** the quote shows ৳14,500 × 4 and a total of ৳58,000
 - **AND** the quote carries the current price list version
 
 #### Scenario: Price changed since the last quote
-- **WHEN** staff change the 3-bedroom standard base price and a new quote is requested with the same inputs
-- **THEN** the new quote uses the new amount and the new price list version
-- **AND** the old amount appears nowhere in it
+- **WHEN** staff change the Sundarbans price and a new quote is requested with the same inputs
+- **THEN** the new quote uses the new price and the new price list version
+- **AND** the old total appears nowhere in it
 
 ### Requirement: Quote inputs are validated
-The system SHALL reject a quote request for an unknown or inactive service, an unknown or inactive add-on, or a bedroom or bathroom count outside the supported range, and SHALL say which input is wrong.
+The system SHALL reject a quote for an unknown or inactive tour, or for fewer than 1 or more than 10 travelers, and SHALL say which input is wrong.
 
-#### Scenario: Bedroom count out of range
-- **WHEN** a quote is requested for 9 bedrooms and the price list covers 1 to 5
-- **THEN** no quote is returned
-- **AND** the error names the bedroom count and the supported range
-
-#### Scenario: Inactive add-on
-- **WHEN** a quote is requested with an add-on that staff have deactivated
-- **THEN** no quote is returned
-- **AND** the error names that add-on
-
-### Requirement: Amounts are exact
-The system SHALL store and compute all amounts as whole cents and SHALL never round during calculation.
-
-#### Scenario: Totals add up exactly
-- **WHEN** a quote has line items of 12999, 2500 and 3500 cents
-- **THEN** the total is exactly 18999 cents
+#### Scenario: Too many travelers
+- **WHEN** a quote is requested for 15 travelers
+- **THEN** no quote is returned and the error says bookings take 1 to 10 travelers
 
 ### Requirement: Default price list is seeded
-The system SHALL provide a seed command that loads Mopwell's default services, price rules and add-ons, and SHALL be safe to run more than once.
-
-#### Scenario: Seeding an empty database
-- **WHEN** the seed command runs against an empty, migrated database
-- **THEN** standard clean and deep clean exist with base prices for 1 to 5 bedrooms, an extra-bathroom price, and the oven, fridge and inside-windows add-ons
+The system SHALL provide a seed command that loads the three default tours and their prices, and SHALL be safe to run more than once.
 
 #### Scenario: Seeding twice
-- **WHEN** the seed command runs a second time
-- **THEN** no duplicate rows are created and staff edits are not overwritten
+- **WHEN** the seed command runs on a database that already has tours, some edited by staff
+- **THEN** no duplicate tours are created and staff edits are not overwritten
 
 ### Requirement: Staff edit prices
-Staff SHALL be able to change any service base price, the extra-bathroom price, and any add-on price or active flag from `/staff/pricing`.
+Staff SHALL be able to change any tour's per-person price and active flag from `/staff/pricing`.
 Every save SHALL increase the price list version by one, atomically with the price change.
 
 #### Scenario: Saving a new price
-- **WHEN** staff change the deep clean 2-bedroom price from 21000 to 22500 cents and save
-- **THEN** the stored price is 22500 cents
-- **AND** the price list version is one higher than before
+- **WHEN** staff change the Sylhet price from ৳8,500 to ৳9,000 and save
+- **THEN** the stored price is ৳9,000 and the price list version is one higher than before
 
 #### Scenario: Invalid amount
 - **WHEN** staff enter a negative or non-numeric price and save

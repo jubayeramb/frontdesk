@@ -39,7 +39,7 @@ The endpoint SHALL respond 200 once events are stored, without waiting for the m
 Events for the same WhatsApp contact SHALL be processed one at a time in arrival order, and two workers SHALL never process the same event.
 
 #### Scenario: Two quick messages
-- **WHEN** a customer sends "3 bedrooms" and then "2 bathrooms" one second apart
+- **WHEN** a customer sends "Sundarbans" and then "4 people" one second apart
 - **THEN** the second turn starts only after the first finished, and sees the first in its history
 
 ### Requirement: Batched and single deliveries

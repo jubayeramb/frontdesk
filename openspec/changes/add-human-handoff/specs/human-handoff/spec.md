@@ -23,7 +23,7 @@ When a WhatsApp customer asks for a person, the system SHALL set the owner to `h
 
 ### Requirement: Web visitors are sent to WhatsApp for a person
 A web conversation SHALL never be answered by a person.
-When a web visitor asks for a person, the agent SHALL reply with a link that opens a WhatsApp chat with Mopwell, and the web conversation SHALL stay owned by `ai`.
+When a web visitor asks for a person, the agent SHALL reply with a link that opens a WhatsApp chat with Triplone Tours, and the web conversation SHALL stay owned by `ai`.
 
 #### Scenario: Web visitor asks for a person
 - **WHEN** a web visitor writes "I want to talk to someone"

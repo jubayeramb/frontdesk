@@ -44,7 +44,7 @@ GIF is a 10 to 15 second cut of the web quote for the README.
 ## Risks / Trade-offs
 
 - [The display name is not approved] → Messaging stays `LIMITED` until Meta approves it; check the number's health well before launch.
-- [Visitors see "Triplone", not "Mopwell", on WhatsApp] → Decided: Meta restricted a WhatsApp Business account named after Mopwell, so the demo uses the existing "Triplone" account. The site (demo-site spec), the README and `/how-it-works` say so where WhatsApp appears.
+- [A Bangladesh tour agency on a US +1 number reads oddly] → The README and `/how-it-works` say in one line that the number came from Kapso's instant setup.
 - [Kapso webhook still points at a dev tunnel] → The checklist starts by checking the webhook URL in Kapso.
 - [Inbox embed origin mismatch on the new domain] → Create the production embed with the final origin only after DNS resolves.
 - [Real numbers end up in the GIF or video] → Use the test phone and blur its number in the recording.

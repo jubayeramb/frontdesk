@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mopwell Cleaning (demo)",
+  title: "Triplone Tours (demo)",
   description:
-    "A demo home-cleaning business in Austin, TX with an AI front desk on web chat and WhatsApp.",
+    "A demo tour agency in Dhaka, Bangladesh with an AI front desk on web chat and WhatsApp.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  Front Desk is one AI agent that answers customers on web chat and WhatsApp for a made-up home-cleaning business, "Mopwell Cleaning (demo)" in Austin, TX.
+  Front Desk is one AI agent that answers customers on web chat and WhatsApp for a made-up tour agency, "Triplone Tours (demo)" in Dhaka, Bangladesh. Prices are in BDT.
   WhatsApp runs through Kapso (webhooks in, Kapso SDK out). Humans work only in Kapso's embedded inbox at /staff.
 
   Stack: Next.js 16 (App Router, src/ layout), React 19, TypeScript strict, pnpm, Tailwind 4 + shadcn/ui, Drizzle ORM on Neon Postgres (WebSocket Pool), zod env validation in src/env.ts, AI SDK with @ai-sdk/groq, Vitest, Playwright. Hosted on Vercel.
@@ -13,7 +13,8 @@ context: |
   - Webhooks are verified (HMAC on the raw body), stored once (dedupe key), acknowledged fast, and processed asynchronously in order per conversation.
   - Ownership (ai or human) is stored on the conversation. The agent never replies while a human owns it.
   - Free-form WhatsApp sends respect the 24-hour reply window.
-  - The agent stays scoped to Mopwell and refuses unrelated requests.
+  - The agent stays scoped to Triplone Tours and refuses unrelated requests.
+  - The business side stays minimal (tours, a per-person price, departures, bookings). Effort goes into the Kapso and agent parts.
 
   Clean-room rule: no code, model names, file paths or internal stories from the author's employer. Everything is written from scratch.
 

@@ -8,16 +8,15 @@
 
 ## 2. Pricing
 
-- [ ] 2.1 Add the `services`, `price_rules`, `add_ons` and `price_list` tables, generate the migration, and verify `pnpm db:migrate` applies it to the test database
-- [ ] 2.2 Write `src/db/seed-data.ts` and the idempotent seed, and verify an integration test that seeds twice finds no duplicates and keeps an edited price
-- [ ] 2.3 Implement pure `computeQuote` and verify unit tests for every scenario in the pricing spec (line items, exact totals, out-of-range counts, inactive add-ons)
-- [ ] 2.4 Implement `getPriceList(db)` and verify an integration test reads the seeded list with its version
-- [ ] 2.5 Implement `updatePrices(db, changes)` (zod-validated, one transaction, bumps the version) and verify integration tests for a valid save, an invalid amount, and that the version rises by exactly one
+- [ ] 2.1 Add the `tours` and `price_list` tables, generate the migration, and verify `pnpm db:migrate` applies it to the test database
+- [ ] 2.2 Write `src/db/seed-data.ts` (three tours) and the idempotent seed, and verify an integration test that seeds twice finds no duplicates and keeps an edited price
+- [ ] 2.3 Implement pure `computeQuote` and the `৳` formatter, and verify unit tests for the pricing scenarios (group of four, 0 and 11 travelers, inactive tour)
+- [ ] 2.4 Implement `getPriceList(db)` and `updatePrices(db, changes)` (zod-validated, one transaction, bumps the version), and verify integration tests for reading the seed, a valid save, an invalid amount, and the version rising by exactly one
 
-## 3. Slots and bookings
+## 3. Departures and bookings
 
-- [ ] 3.1 Implement pure `listSlots(now, booked)` and verify unit tests for a normal week, a started slot, a booked slot, and both DST transitions
-- [ ] 3.2 Add the `bookings` table (`slot_start` unique, quote snapshot as jsonb), and implement `bookSlot(db, ...)`; verify integration tests for success, a concurrent double booking (exactly one wins), and an invalid slot
+- [ ] 3.1 Implement pure `listDepartures(tour, now)` and verify unit tests for the Sundarbans weekdays, the 48-hour cutoff and the 14-day window
+- [ ] 3.2 Add the `bookings` table and `bookDeparture(db, ...)`, and verify integration tests for a stored booking and a refused date
 
 ## 4. Staff access and pricing page
 

@@ -7,14 +7,14 @@ Moves a website conversation to WhatsApp without losing context, using a short o
 ## ADDED Requirements
 
 ### Requirement: Web visitors get a WhatsApp link with a code
-When a web visitor asks to continue on WhatsApp, or asks for a person, the agent SHALL reply with a "Continue on WhatsApp" link that opens WhatsApp with "Hi! My code is MW-XXXXXX" prefilled.
+When a web visitor asks to continue on WhatsApp, or asks for a person, the agent SHALL reply with a "Continue on WhatsApp" link that opens WhatsApp with "Hi! My code is TR-XXXXXX" prefilled.
 
 #### Scenario: Visitor taps Continue on WhatsApp
 - **WHEN** a web visitor with a quote asks to continue on WhatsApp
-- **THEN** the reply has a link to the Mopwell number with a prefilled message containing a new code
+- **THEN** the reply has a link to the Triplone Tours number with a prefilled message containing a new code
 
 ### Requirement: Codes are short-lived and single use
-A code SHALL be `MW-` followed by 6 characters from an alphabet without look-alike characters, SHALL expire 15 minutes after it is created, and SHALL work only once.
+A code SHALL be `TR-` followed by 6 characters from an alphabet without look-alike characters, SHALL expire 15 minutes after it is created, and SHALL work only once.
 
 #### Scenario: Expired code
 - **WHEN** a WhatsApp message contains a code created 20 minutes ago
