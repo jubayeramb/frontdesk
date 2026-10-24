@@ -7,6 +7,11 @@ export const serverSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   DATABASE_URL: z.url(),
+  // Set only for a local Postgres behind Neon's wsproxy, e.g. "localhost:5433/v1".
+  DATABASE_WS_PROXY: z.string().min(1).optional(),
+  // Shared password for /staff, and the key that signs staff session cookies.
+  STAFF_PASSWORD: z.string().min(12, "Use at least 12 characters."),
+  STAFF_SESSION_SECRET: z.string().min(32, "Use at least 32 characters."),
 });
 
 export type Env = z.infer<typeof serverSchema>;

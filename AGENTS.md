@@ -13,14 +13,33 @@ Nothing here takes real bookings.
 | `pnpm build` | Production build |
 | `pnpm lint` | ESLint, fails on any warning |
 | `pnpm typecheck` | Generate route types, then `tsc --noEmit` |
-| `pnpm test` | Unit tests (Vitest) |
-| `pnpm test:e2e` | End-to-end tests (Playwright, builds and starts the app on port 3100) |
+| `pnpm test` | Unit tests (Vitest), no database |
+| `pnpm test:int` | Integration tests (`*.int.test.ts`) against the docker test database |
+| `pnpm test:e2e` | End-to-end tests (Playwright). Builds and starts the app on port 3100 against its own `frontdesk_e2e` database |
+| `pnpm db:test:up` | Start the docker test database (Postgres 17 plus Neon's wsproxy) |
+| `pnpm db:test:down` | Stop it and delete its data |
 | `pnpm db:generate` | Generate a migration from `src/db/schema.ts` |
-| `pnpm db:migrate` | Apply migrations to `DATABASE_URL` |
-| `pnpm db:seed` | Load the default price list and services |
+| `pnpm db:migrate` | Apply migrations to `DATABASE_URL` through the app's own driver |
+| `pnpm db:seed` | Load the default tours and price list (safe to rerun, keeps staff edits) |
 | `pnpm spec:validate` | `openspec validate --all --strict` |
 
 Copy `.env.example` to `.env.local` before running anything that touches the database.
+`pnpm test:int` and `pnpm test:e2e` need `pnpm db:test:up` first; they never touch `DATABASE_URL`.
+
+### Environment
+
+| Variable | Used for |
+|---|---|
+| `DATABASE_URL` | Neon Postgres. Use the pooled connection string |
+| `DATABASE_WS_PROXY` | Only for a local Postgres behind wsproxy, e.g. `localhost:5433/v1` |
+| `STAFF_PASSWORD` | The shared password for `/staff` (12+ characters) |
+| `STAFF_SESSION_SECRET` | Signs staff session cookies (32+ characters, `openssl rand -hex 32`). Rotating it, or the password, signs everyone out |
+
+### Next.js 16 notes
+
+- `cacheComponents` is on. Anything that reads cookies, search params or the session goes in a component inside `<Suspense>`; the page and layout around it stay static.
+- Never render a form inside a Suspense fallback. The fallback copy is what people use before hydration, and its action state is thrown away.
+- Session checks call `await connection()` before reading the clock, so they never run during prerendering.
 
 ## Architecture rules
 

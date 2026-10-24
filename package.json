@@ -2,6 +2,7 @@
   "name": "frontdesk",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,10 +11,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:int": "vitest run --config vitest.int.config.ts",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx --conditions=react-server --env-file-if-exists=.env.local src/db/migrate.ts",
     "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local src/db/seed.ts",
+    "db:test:up": "docker compose up -d --wait",
+    "db:test:down": "docker compose down -v",
     "spec:validate": "openspec validate --all --strict"
   },
   "dependencies": {

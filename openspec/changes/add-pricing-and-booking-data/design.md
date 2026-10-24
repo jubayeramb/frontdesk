@@ -30,7 +30,7 @@ Seed tours: Sundarbans 3-day boat tour (Thu, Sun), Sylhet tea gardens 2-day (Fri
 
 ### Quote
 
-`computeQuote(tour, travelers)` is pure and returns `{ ok: true, quote } | { ok: false, error }`, where `quote` is `{ tour, pricePerPersonBdt, travelers, totalBdt, priceListVersion }`.
+`computeQuote(priceList, { tourSlug, travelers })` is pure (it needs the whole list to reject unknown and inactive tours) and returns `{ ok: true, quote } | { ok: false, error }`, where `quote` is `{ tour, pricePerPersonBdt, travelers, totalBdt, priceListVersion }`.
 `getPriceList(db)` reads tours and the version in one transaction, so a quote never mixes two versions.
 Errors are values, not exceptions, because the agent tool hands them to the model as data.
 Formatting (`৳58,000`) lives in one helper used by the agent and the pages.

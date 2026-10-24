@@ -12,6 +12,28 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: frontdesk_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d frontdesk_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+      # Lets integration tests use the same Neon serverless driver as the app.
+      wsproxy:
+        image: ghcr.io/neondatabase/wsproxy:latest
+        env:
+          APPEND_PORT: postgres:5432
+          ALLOW_ADDR_REGEX: ".*"
+        ports:
+          - 5433:80
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,6 +45,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm test:int
       - run: pnpm spec:validate
         env:
           OPENSPEC_TELEMETRY: "0"

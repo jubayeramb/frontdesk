@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { E2E_ENV } from "./e2e/env";
+
 const port = Number(process.env.PORT ?? 3100);
 const baseURL = `http://localhost:${port}`;
 
@@ -9,6 +11,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
+  globalSetup: "./e2e/global-setup.ts",
   use: { baseURL, trace: "on-first-retry" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
@@ -17,7 +20,9 @@ export default defineConfig({
   webServer: {
     command: `pnpm build && pnpm start --port ${port}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
+    // A server started by hand would use the developer's own env, not E2E_ENV.
+    reuseExistingServer: false,
     timeout: 180_000,
+    env: E2E_ENV,
   },
 });
