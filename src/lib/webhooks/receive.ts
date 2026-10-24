@@ -1,6 +1,6 @@
 import type { Db } from "@/db/client";
 import { drain, storeEvents, sweep, type EventHandler } from "./events";
-import { normalize } from "./normalize";
+import { normalize, type KapsoEvent } from "./normalize";
 import { verifySignature } from "./signature";
 
 export type ReceiveDeps = {
@@ -8,6 +8,9 @@ export type ReceiveDeps = {
   secret: string;
   phoneNumberId: string;
   handle: EventHandler;
+  // Tells the customer a reply is coming, for events seen for the first time.
+  // Runs alongside the processing, so it shows before the turn starts.
+  acknowledge?: (event: KapsoEvent) => Promise<void>;
   // Runs work after the response is sent (`after` in the route).
   schedule: (work: () => Promise<void>) => void;
 };
@@ -37,15 +40,18 @@ export async function receiveKapsoWebhook(request: Request, deps: ReceiveDeps): 
 
   const events = normalized.events.filter((e) => e.phoneNumberId === null || e.phoneNumberId === deps.phoneNumberId);
   if (events.length < normalized.events.length) console.warn("kapso webhook: dropped events for another phone number");
-  const { stored, partitions } = await storeEvents(deps.db, events);
+  const { stored, fresh, partitions } = await storeEvents(deps.db, events);
 
   deps.schedule(async () => {
+    const acknowledged = Promise.all(fresh.map((event) => deps.acknowledge?.(event).catch(() => {})));
     try {
       for (const partition of partitions) await drain(deps.db, partition, deps.handle);
       await sweep(deps.db, deps.handle);
     } catch (error) {
       // The events are stored; the next request's sweep picks them up.
       console.error(`kapso webhook processing stopped: ${error instanceof Error ? error.name : typeof error}`);
+    } finally {
+      await acknowledged;
     }
   });
   return Response.json({ ok: true, stored });

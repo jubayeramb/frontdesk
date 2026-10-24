@@ -15,6 +15,7 @@ import {
   noteWhatsAppInbound,
 } from "@/lib/conversations/store";
 import type { EventHandler } from "./events";
+import type { KapsoEvent } from "./normalize";
 
 const receivedSchema = z.object({
   message: kapsoMessageSchema.extend({ from: z.string() }),
@@ -33,6 +34,19 @@ const failedSchema = z.object({
       .optional(),
   }),
 });
+
+// Shows WhatsApp's typing indicator for a message the agent will answer. Runs
+// as soon as the webhook is stored, before the claim and the conversation
+// lookups, which take seconds from far away; the turn itself comes later.
+// Images and other messages the agent skips get no indicator.
+export function createKapsoAcknowledger(deps: { adapter: ChannelAdapter }) {
+  return async (event: KapsoEvent): Promise<void> => {
+    if (event.type !== "whatsapp.message.received" || !deps.adapter.showTyping) return;
+    const parsed = receivedSchema.safeParse(event.payload);
+    if (!parsed.success || !mapInbound(parsed.data.message, null)) return;
+    await deps.adapter.showTyping(parsed.data.message.id);
+  };
+}
 
 // What each stored Kapso event does. Events this change does not act on yet
 // (sent, delivered, read, conversation events) are marked done untouched.
@@ -62,8 +76,6 @@ export function createKapsoHandler(deps: {
     // Images, reactions and the like stay in the event log; the agent skips them for now.
     if (!inbound) return;
 
-    // Started with the turn, so the round trip to Kapso never adds to the reply time.
-    const typing = deps.adapter.showTyping?.(message.id);
     const turn = await runTurn({
       db: deps.db,
       conversationId: conversation.id,
@@ -72,7 +84,6 @@ export function createKapsoHandler(deps: {
       now: now(),
       models: deps.models,
     });
-    await typing;
     await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to: customer, turn });
   }
 

@@ -13,6 +13,7 @@ export const LIMITS = {
   textBody: 4096,
 } as const;
 
+// For choices stored before they carried a label of their own.
 const LIST_BUTTON = "Choose";
 
 // More options than a list holds are sent as numbered text, and a reply with a
@@ -29,18 +30,20 @@ export function render(reply: AgentReply): OutboundMessage[] {
     case "link":
       return textMessages(`${reply.text}\n${reply.url}`);
     case "choices":
-      return renderChoices(reply.prompt, reply.options);
+      return renderChoices(reply.prompt, reply.options, reply.label);
   }
 }
 
-function renderChoices(prompt: string, options: ChoiceOption[]): OutboundMessage[] {
+function renderChoices(prompt: string, options: ChoiceOption[], label?: string): OutboundMessage[] {
   const body = cut(stripMarkdown(prompt), LIMITS.interactiveBody);
-  if (options.length <= LIMITS.buttons) {
+  // A button has nowhere to show a label it cuts, so long labels go in a list,
+  // whose rows keep the full label as their description.
+  if (options.length <= LIMITS.buttons && options.every((o) => o.label.length <= LIMITS.buttonTitle)) {
     return [
       {
         type: "buttons",
         body,
-        buttons: options.map((o) => ({ id: o.id, title: shorten(o.label, LIMITS.buttonTitle) })),
+        buttons: options.map((o) => ({ id: o.id, title: o.label })),
       },
     ];
   }
@@ -49,7 +52,7 @@ function renderChoices(prompt: string, options: ChoiceOption[]): OutboundMessage
       {
         type: "list",
         body,
-        button: LIST_BUTTON,
+        button: cut(label ?? LIST_BUTTON, LIMITS.listButton),
         rows: options.map((o) => {
           const title = shorten(o.label, LIMITS.rowTitle);
           // A shortened title keeps the full label one line below it.

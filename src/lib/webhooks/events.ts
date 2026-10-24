@@ -12,18 +12,27 @@ const MAX_PER_DRAIN = 25;
 
 export type EventHandler = (event: WebhookEvent) => Promise<void>;
 
-// Stores each event once. Returns the partitions the delivery touched,
-// including ones whose events were already stored, so they get drained.
-export async function storeEvents(db: Db, events: KapsoEvent[]): Promise<{ stored: number; partitions: string[] }> {
-  if (events.length === 0) return { stored: 0, partitions: [] };
+// Stores each event once. Returns the events stored for the first time, and
+// the partitions the delivery touched, including ones whose events were
+// already stored, so they get drained.
+export async function storeEvents(
+  db: Db,
+  events: KapsoEvent[],
+): Promise<{ stored: number; fresh: KapsoEvent[]; partitions: string[] }> {
+  if (events.length === 0) return { stored: 0, fresh: [], partitions: [] };
   const rows = await db
     .insert(webhookEvents)
     .values(
       events.map((e) => ({ dedupeKey: e.dedupeKey, partitionKey: e.partitionKey, eventType: e.type, payload: e.payload })),
     )
     .onConflictDoNothing({ target: webhookEvents.dedupeKey })
-    .returning({ id: webhookEvents.id });
-  return { stored: rows.length, partitions: [...new Set(events.map((e) => e.partitionKey))] };
+    .returning({ dedupeKey: webhookEvents.dedupeKey });
+  const inserted = new Set(rows.map((r) => r.dedupeKey));
+  return {
+    stored: rows.length,
+    fresh: events.filter((e) => inserted.has(e.dedupeKey)),
+    partitions: [...new Set(events.map((e) => e.partitionKey))],
+  };
 }
 
 // Claims the oldest pending event of a partition, unless another worker is

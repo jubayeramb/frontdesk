@@ -10,7 +10,7 @@ import { fakeKapso } from "../../../test/support/fake-kapso";
 import { FIXTURE_SECRET, fixtureRequest } from "../../../test/support/kapso-fixtures";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
 import { drain } from "./events";
-import { createKapsoHandler } from "./kapso-handler";
+import { createKapsoAcknowledger, createKapsoHandler } from "./kapso-handler";
 import { receiveKapsoWebhook } from "./receive";
 
 const db = setupTestDb();
@@ -21,12 +21,8 @@ const now = new Date("2026-11-02T10:00:00+06:00");
 function setup(script: ScriptStep[]) {
   const kapso = fakeKapso();
   const model = scriptedModel(script);
-  const handle = createKapsoHandler({
-    db,
-    adapter: createWhatsAppAdapter({ apiKey: "k", phoneNumberId: "1382322134966757", fetch: kapso.fetch }),
-    models: [{ id: "primary", model }],
-    now: () => now,
-  });
+  const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: "1382322134966757", fetch: kapso.fetch });
+  const handle = createKapsoHandler({ db, adapter, models: [{ id: "primary", model }], now: () => now });
   // Runs the after-response work straight away, as a quiet production would.
   const post = async (request: Request) => {
     let work: (() => Promise<void>) | undefined;
@@ -35,6 +31,7 @@ function setup(script: ScriptStep[]) {
       secret: FIXTURE_SECRET,
       phoneNumberId: "1382322134966757",
       handle,
+      acknowledge: createKapsoAcknowledger({ adapter }),
       schedule: (w) => void (work = w),
     });
     await work?.();
@@ -101,6 +98,7 @@ describe("whatsapp.message.received", () => {
     await post(fixtureRequest("message-received-text"));
     await post(fixtureRequest("message-received-text"));
     expect(kapso.sends).toHaveLength(1);
+    expect(kapso.receipts).toHaveLength(1);
   });
 
   it("does not answer again when an event is retried after its turn ran", async () => {
