@@ -28,9 +28,14 @@ interface ChannelAdapter {
   capabilities(): { buttons: number; listRows: number; markdown: boolean };
   replyPolicy(conv: Conversation, now: Date): { canSendFreeForm: boolean; reason?: string };
   render(reply: AgentReply): OutboundMessage[];
-  send(conv: Conversation, msgs: OutboundMessage[]): Promise<{ externalId?: string }[]>;
+  send(to: string, msg: OutboundMessage, opts: { nonce: string }): Promise<SendResult>;
 }
 ```
+
+`send` takes one message, so the outbox can store a row before each send and update it right after.
+`deliverTurn` (in `src/lib/channels/deliver.ts`) drives it: `runTurn` returns the stored message id for each reply, the reply is rendered, and each part is sent in order.
+A reply that renders into several messages (a split long text) gets one extra row per part, with `payload.continues` pointing at the reply's row; history skips those rows, so the model sees the reply once.
+A rejected send marks its row failed and the turn's remaining replies `skipped`, since they would read wrong on their own.
 
 `render` is pure and holds all degradation rules, so the rendering spec is unit-tested without the network.
 `replyPolicy` returns "always allowed" here; add-guards-and-retention fills in the 24-hour rule.
@@ -50,22 +55,27 @@ The last numbered `choices` payload is stored on the outbound message, so a late
 
 ### Claim and drain
 
+One claim transaction per event:
+
 ```sql
-SELECT id FROM webhook_events
-WHERE partition_key = $1 AND status = 'pending'
-  AND NOT EXISTS (SELECT 1 FROM webhook_events p
-                  WHERE p.partition_key = $1 AND p.status = 'processing'
-                    AND p.updated_at > now() - interval '2 minutes')
-ORDER BY created_at, id
-LIMIT 1
-FOR UPDATE SKIP LOCKED
+SELECT pg_advisory_xact_lock(hashtextextended($1, 0));
+-- release this partition's stale processing rows (pending, or failed at 3 attempts)
+SELECT 1 FROM webhook_events WHERE partition_key = $1 AND status = 'processing';  -- busy: stop
+SELECT id FROM webhook_events WHERE partition_key = $1 AND status = 'pending'
+ORDER BY created_at, id LIMIT 1;
+UPDATE webhook_events SET status = 'processing', attempts = attempts + 1, updated_at = now() WHERE id = ...;
 ```
 
-The claim sets `status = 'processing'` in the same transaction; the turn runs outside it; the event ends `done` or back to `pending` with `attempts + 1` (`failed` at 3).
-The `NOT EXISTS` clause keeps order: a second worker cannot start a later event while an earlier one is processing.
-`sweep()` resets `processing` rows older than 2 minutes to `pending` and drains their partitions.
+The turn runs outside the transaction, and the event ends `done`, or back to `pending` with its error (`failed` once attempts reach 3).
+Attempts count claims, so an event whose worker keeps dying also ends `failed`.
+A drain stops at the first failure: the event stays first in line, so nothing behind it runs out of order, and a sweep retries it after 2 minutes.
+`sweep()` releases stale `processing` rows everywhere and drains every partition with a pending event that has waited past 2 minutes.
 
-Alternatives: Postgres advisory locks per partition (also correct, but locks tied to a pooled connection are easy to leak in serverless); an external queue such as QStash (more moving parts and another account for a demo).
+The first draft used `FOR UPDATE SKIP LOCKED` with a `NOT EXISTS (processing)` check.
+That lets two workers start at once: neither sees the other's uncommitted `processing` row, so the second skips the locked first event and takes the second.
+The integration test with eight concurrent drains caught it in 2 of 3 runs.
+A transaction-scoped advisory lock makes the check and the claim one step, and it is released at commit, so it cannot leak on a pooled connection the way a session lock can.
+An external queue such as QStash would also work, with more moving parts and another account for a demo.
 
 ### Sweep without a frequent cron
 
@@ -79,9 +89,16 @@ Plain text that is a number within the last numbered choices maps to that option
 Everything else is free text.
 Non-text, non-interactive messages are stored and skipped in this change.
 
+### Retries never answer twice
+
+The inbound message is stored with its WhatsApp id, which is unique.
+A retried `message.received` whose message is already stored is marked done without a turn.
+The trade-off: if a worker dies after storing the message but before sending the reply, the customer gets no reply rather than a second one.
+
 ### Outbox
 
-Before sending, insert the outbound message with a random `client_nonce` and `external_id = null`; after the SDK returns, set `external_id`.
+Before sending, mark the outbound message `pending` with a random `client_nonce` and `external_id = null`; after the SDK returns, set `external_id` and `sent`, or `failed` with the error code.
+The nonce also goes out as `biz_opaque_callback_data`, which Meta echoes on status webhooks.
 This is the base that add-human-handoff needs to tell our sends from inbox replies.
 
 ## Risks / Trade-offs
@@ -93,6 +110,20 @@ This is the base that add-human-handoff needs to tell our sends from inbox repli
 - [Logs leak phone numbers through message ids] → `wamid` ids embed the phone number in base64, so log masking treats message ids like phone numbers.
 - [Interactive sends require an open 24-hour window] → Always true right after an inbound message; add-guards-and-retention handles the rest.
 - [Kapso SDK is pre-1.0 (0.4.x)] → Wrap it in the adapter so a breaking change touches one file; pin the exact version.
+
+## Real-phone findings (2026-10-24)
+
+The first run (quote, departures, tap, booking TR-00001) worked end to end: every inbound and outbound message was stored with its WhatsApp id, and Kapso's `sent` and `read` events were stored and marked done.
+Three things looked wrong on the phone and are fixed:
+
+- **Stray tour buttons after a quote.** The model called `listTours` to match "Sundarban" to a tour, then `getQuote`, and the turn sent the quote plus "Which tour would you like?" with three buttons. A successful quote or booking now clears options collected earlier in the turn.
+- **Departures listed in text above the same buttons.** The prompt now says to introduce options in one short sentence and never list them, and the `listTours` and `listDepartures` results repeat it, since the model lists options right after receiving them.
+- **Run-on replies.** After a tool result, `gpt-oss-120b` on Groq often keeps writing closing lines ("Which date works best for you?Let me know which departure..."), up to a dozen, with no space between them. It reproduced in 3 of 3 replays and still happens, shorter, with the new prompt. `firstMessage` keeps the text up to the first sentence end followed straight by a capital letter.
+
+Not a bug: with 48 hours' notice and a 14-day window, a tour has 3 or 4 departures, so departures arrive as buttons or a short list depending on the day.
+Webhook responses took about 1.1 s from a laptop in Dhaka even for events that store nothing.
+That is Neon's WebSocket pool reconnecting after its 10 second idle timeout, several round trips to us-east; back-to-back requests took about 275 ms.
+On Vercel next to the database it should not matter, and deploy-and-document should measure it there.
 
 ## Migration Plan
 

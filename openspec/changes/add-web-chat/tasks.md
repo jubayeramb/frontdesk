@@ -4,7 +4,7 @@
 
 - [ ] 1.1 Implement the web adapter (`render` passes replies through, `send` is a no-op that marks messages delivered) and verify unit tests that every reply kind survives rendering unchanged
 - [ ] 1.2 Add `CHAT_COOKIE_SECRET` to env, and the cookie sign and verify helpers; verify unit tests for valid, tampered and missing cookies
-- [ ] 1.3 Implement `POST` and `GET /api/chat` (conversation from cookie, nonce dedupe, `runTurn`, transcript) and verify integration tests: first message creates a conversation, a duplicate nonce runs one turn, a forged cookie gets a fresh conversation
+- [ ] 1.3 Implement `POST` and `GET /api/chat` (conversation from cookie, nonce dedupe, `runTurn`, transcript, and an `after()` webhook `sweep()` as add-whatsapp-channel's design relies on) and verify integration tests: first message creates a conversation, a duplicate nonce runs one turn, a forged cookie gets a fresh conversation, a stuck WhatsApp event is processed after a chat request
 
 ## 2. Widget
 
