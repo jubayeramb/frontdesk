@@ -16,7 +16,7 @@ import type { ConversationState } from "./state";
 export const HISTORY_WINDOW = 20;
 
 // Finds the contact behind a channel identity (or creates both) and returns
-// their latest conversation, starting one if they have none.
+// their latest open conversation, starting one if they have none.
 export async function findOrCreateConversation(
   db: Db,
   input: { channel: Channel; externalId: string; displayName?: string },
@@ -61,7 +61,7 @@ export async function findOrCreateConversation(
     const [latest] = await tx
       .select()
       .from(conversations)
-      .where(eq(conversations.contactId, contactId))
+      .where(and(eq(conversations.contactId, contactId), isNull(conversations.closedAt)))
       .orderBy(desc(conversations.createdAt))
       .limit(1);
     if (latest) return latest;
@@ -71,7 +71,7 @@ export async function findOrCreateConversation(
   });
 }
 
-// The latest conversation behind a channel identity, without creating one.
+// The latest open conversation behind a channel identity, without creating one.
 export async function findConversation(
   db: Db,
   input: { channel: Channel; externalId: string },
@@ -80,7 +80,13 @@ export async function findConversation(
     .select({ conversation: conversations })
     .from(channelIdentities)
     .innerJoin(conversations, eq(conversations.contactId, channelIdentities.contactId))
-    .where(and(eq(channelIdentities.channel, input.channel), eq(channelIdentities.externalId, input.externalId)))
+    .where(
+      and(
+        eq(channelIdentities.channel, input.channel),
+        eq(channelIdentities.externalId, input.externalId),
+        isNull(conversations.closedAt),
+      ),
+    )
     .orderBy(desc(conversations.createdAt))
     .limit(1);
   return row?.conversation;

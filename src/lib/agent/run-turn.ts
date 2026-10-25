@@ -17,8 +17,16 @@ const MAX_STEPS = 5;
 
 // A tap on a button or list row carries the option id; typed text does not.
 // `externalId` is the channel's id for the message, when it has one, and
-// `clientNonce` the sender's own, so a resubmission is stored once.
-export type Inbound = { text: string; choiceId?: string; externalId?: string; clientNonce?: string };
+// `clientNonce` the sender's own, so a resubmission is stored once. `link` is
+// set when the message carried a link code: whether it continued a web
+// conversation or was expired or used.
+export type Inbound = {
+  text: string;
+  choiceId?: string;
+  externalId?: string;
+  clientNonce?: string;
+  link?: "continued" | "rejected";
+};
 
 export type TurnResult = {
   replies: AgentReply[];
@@ -50,7 +58,7 @@ export async function runTurn(input: {
     direction: "inbound",
     sentBy: "customer",
     body: inbound.text,
-    payload: inbound.choiceId ? { choiceId: inbound.choiceId } : undefined,
+    payload: inbound.choiceId ? { choiceId: inbound.choiceId } : inbound.link ? { link: inbound.link } : undefined,
     externalId: inbound.externalId,
     clientNonce: inbound.clientNonce,
   });
@@ -142,6 +150,11 @@ export async function runTurn(input: {
   return { replies, messageIds: stored.map((m) => m.id) };
 }
 
+const LINK_MEANING = {
+  continued: "I'm continuing my website chat here on WhatsApp.",
+  rejected: "I have a code from the website chat, but it has expired or was already used.",
+};
+
 // History as the model sees it. Offered options and picked ids are spelled
 // out so a later "the Sunday one" or a tapped button maps to a real id.
 export function toModelMessages(history: Message[]): ModelMessage[] {
@@ -150,6 +163,12 @@ export function toModelMessages(history: Message[]): ModelMessage[] {
     // A long reply split for a channel is already in history as one message.
     if (message.sentBy === "system" || message.payload?.continues) continue;
     if (message.sentBy === "customer") {
+      // The model never sees a link code, only what it meant.
+      const link = message.payload?.link;
+      if (link) {
+        out.push({ role: "user", content: LINK_MEANING[link === "continued" ? "continued" : "rejected"] });
+        continue;
+      }
       const choiceId = message.payload?.choiceId;
       out.push({
         role: "user",
