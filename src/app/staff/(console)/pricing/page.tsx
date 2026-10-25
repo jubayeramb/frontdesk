@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Pricing | Triplone Tours staff" };
 
 export default function PricingPage() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Pricing</h1>
         <p className="text-sm text-muted-foreground">The agent quotes these prices.</p>
@@ -23,7 +23,7 @@ export default function PricingPage() {
 }
 
 async function PriceListSection() {
-  await requireStaff();
+  await requireStaff("/staff/pricing");
   const priceList = await getPriceList(db);
   return (
     <div className="flex flex-col gap-4">

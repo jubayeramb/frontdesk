@@ -19,6 +19,7 @@
     "db:test:up": "docker compose up -d --wait",
     "db:test:down": "docker compose down -v",
     "agent:chat": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/agent-chat.ts",
+    "inbox:embed": "tsx --env-file-if-exists=.env.local scripts/create-inbox-embed.ts",
     "spec:validate": "openspec validate --all --strict"
   },
   "dependencies": {

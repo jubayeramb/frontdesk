@@ -1,10 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { staffKeys } from "@/lib/staff/auth";
-import { safeNextPath } from "@/lib/staff/next-path";
+import { nextFromReferer, safeNextPath } from "@/lib/staff/next-path";
 import {
   createSessionToken,
   passwordMatches,
@@ -27,7 +27,8 @@ export async function signIn(_prev: SignInState, formData: FormData): Promise<Si
     path: "/staff",
     maxAge: SESSION_MAX_AGE_MS / 1000,
   });
-  redirect(safeNextPath(formData.get("next")));
+  const next = formData.get("next") || nextFromReferer((await headers()).get("referer"));
+  redirect(safeNextPath(next));
 }
 
 export async function signOut(): Promise<void> {

@@ -16,7 +16,8 @@ export function SignInForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Suspense fallback={<input type="hidden" name="next" value="/staff" />}>
+      {/* Empty until hydration; the action then reads `next` from the page address. */}
+      <Suspense fallback={<input type="hidden" name="next" value="" />}>
         <NextPathInput />
       </Suspense>
       <div className="flex flex-col gap-2">

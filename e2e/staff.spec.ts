@@ -77,7 +77,8 @@ test("sign-in works before JavaScript loads", async ({ browser }) => {
   await page.goto("/staff/sign-in");
   await expect(page.locator("form")).toHaveCount(1);
   await signIn(page);
-  await expect(page).toHaveURL(/\/staff\/pricing$/);
+  await expect(page).toHaveURL(/\/staff$/);
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
   await context.close();
 });
 

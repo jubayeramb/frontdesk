@@ -16,7 +16,7 @@ export async function savePrices(
   _prev: SavePricesState,
   formData: FormData,
 ): Promise<SavePricesState> {
-  await requireStaff();
+  await requireStaff("/staff/pricing");
 
   const slugs = formData.getAll("slug").filter((s): s is string => typeof s === "string");
   const changes: PriceChanges = slugs.map((slug) => ({

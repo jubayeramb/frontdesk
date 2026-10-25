@@ -18,7 +18,9 @@ export async function isStaff(): Promise<boolean> {
   return verifySessionToken(token, staffKeys(), new Date());
 }
 
-// Every staff page and action calls this; the proxy redirect is only a convenience.
-export async function requireStaff(): Promise<void> {
-  if (!(await isStaff())) redirect("/staff/sign-in");
+// Every staff page and action calls this; the proxy redirect is only a
+// convenience. `returnTo` is where signing in again should land, the page the
+// session ran out on.
+export async function requireStaff(returnTo: string): Promise<void> {
+  if (!(await isStaff())) redirect(`/staff/sign-in?next=${encodeURIComponent(returnTo)}`);
 }
