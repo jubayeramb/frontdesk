@@ -23,6 +23,7 @@ Nothing here takes real bookings.
 | `pnpm db:seed` | Load the default tours and price list (safe to rerun, keeps staff edits) |
 | `pnpm agent:chat` | Talk to the agent in the terminal on a fresh conversation (`--channel whatsapp` for the WhatsApp hint). Numbers pick an option, `/new` starts over, `/quit` leaves. Calls Groq for real |
 | `LIVE_LLM=1 pnpm test:int` | Also run the live agent tests against Groq on both models. They pause 15 seconds between tests to stay under the per-minute token limit |
+| `pnpm inbox:embed` | Create the Kapso inbox embed for `/staff` (`--origin <origin>`, repeatable, and `--write-env .env.local`), or revoke one with `--revoke <embed-id>` |
 | `pnpm spec:validate` | `openspec validate --all --strict` |
 
 Copy `.env.example` to `.env.local` before running anything that touches the database.
@@ -37,9 +38,11 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 | `DATABASE_WS_PROXY` | Only for a local Postgres behind wsproxy, e.g. `localhost:5433/v1` |
 | `KAPSO_API_KEY` | Sends WhatsApp messages through Kapso's Meta proxy |
 | `KAPSO_PHONE_NUMBER_ID` | Kapso's numeric `phone_number_id` for the demo number. Events for any other number are dropped |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | The demo number, digits only. Web visitors who ask for a person get a `wa.me` link to it |
 | `KAPSO_WEBHOOK_SECRET` | Verifies `X-Webhook-Signature` on Kapso webhooks. Kapso shows it once, when the webhook is created |
 | `GROQ_API_KEY` | The agent's models on Groq. Tests that don't set `LIVE_LLM=1` never call it |
 | `GROQ_BASE_URL` | Unset outside tests. The e2e run points it at `e2e/fake-groq.ts` |
+| `KAPSO_INBOX_EMBED_URL` | Kapso's inbox at `/staff`, from `pnpm inbox:embed`. It holds a token: never log it or render it outside the staff session |
 | `STAFF_PASSWORD` | The shared password for `/staff` (12+ characters) |
 | `STAFF_SESSION_SECRET` | Signs staff session cookies (32+ characters, `openssl rand -hex 32`). Rotating it, or the password, signs everyone out |
 | `CHAT_COOKIE_SECRET` | Signs the web chat's `fd_conv` cookie (32+ characters). Rotating it starts every visitor on a new conversation |
@@ -62,6 +65,23 @@ Kapso needs a public URL for webhooks, so run the app behind a Cloudflare quick 
 
 Kapso's test button sends `"test": true` deliveries. They are acknowledged and dropped, so they never reach the agent.
 
+### Staff inbox
+
+`/staff` shows Kapso's inbox for the demo number next to a list of conversations with their owner.
+A reply from the inbox takes the conversation over from the agent; "Hand back to AI", or Kapso ending the conversation, gives it back.
+
+1. Create an embed per environment, allowed only from that environment's origin:
+   ```sh
+   pnpm inbox:embed --origin http://localhost:3000 --write-env .env.local
+   ```
+   Kapso returns the embed URL, which carries a token, once. The script appends it to the env file as `KAPSO_INBOX_EMBED_URL` and prints only the embed id, status and origins.
+   Without `--write-env` it writes the URL to an owner-only file in `tmp/` instead.
+2. Restart the server and sign in at `/staff`.
+   From any other origin (even `http://127.0.0.1:3000`) the browser refuses to frame the inbox.
+3. To rotate or revoke, run `pnpm inbox:embed --revoke <embed-id>`, delete the `KAPSO_INBOX_EMBED_URL` line, and create a new embed.
+
+The URL is only rendered inside the session-checked part of `/staff`; never log it or put it in a public page.
+
 ### Next.js 16 notes
 
 - `cacheComponents` is on. Anything that reads cookies, search params or the session goes in a component inside `<Suspense>`; the page and layout around it stay static.
@@ -75,7 +95,8 @@ Kapso's test button sends `"test": true` deliveries. They are acknowledged and d
 - **Prices come only from the database through tools.** The model never states a price or an option that a tool did not return. A presenter builds choice replies from tool results.
 - **Webhooks are verified, deduped, and processed asynchronously in order.** Verify the HMAC on the raw body, store the event once by `event_type:message.id`, return 200 fast, then drain each customer's events one at a time in `after()`. A claim takes a transaction-scoped advisory lock on the customer, so two workers never start at once.
 - **Every outbound send is stored before it goes out.** The row gets a nonce and `pending`, then the WhatsApp id or the error. `deliverTurn` is the only path from replies to a channel.
-- **Ownership is stored on the conversation.** The agent never replies while a human owns it. Hand-back or Kapso ending the conversation returns it to the agent.
+- **Ownership is stored on the conversation.** The agent never replies while a human owns it. Hand-back or Kapso ending the conversation returns it to the agent. `transition()` in `src/lib/ownership.ts` is the only code that changes the owner, and it records why.
+- **An outbound message we never sent is a person in the inbox.** Kapso's `message.sent` cannot tell inbox replies from our sends, so the message id decides; an unknown id waits up to 15 seconds if one of our sends is still waiting for its id.
 - **Free-form WhatsApp sends respect the 24-hour window.** `replyPolicy` decides, not the caller.
 - **The agent stays scoped to Triplone Tours.** It refuses unrelated requests.
 - **Tools do the math.** Tools take raw inputs (tour, travelers, departure id) and compute totals in code. The model never adds or multiplies.

@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Vendored agent skills and commands, installed from upstream.
     ".agents/**",
     ".claude/**",
+    // Git-ignored scratch space: review pages, one-off scripts.
+    "tmp/**",
   ]),
 ]);
 

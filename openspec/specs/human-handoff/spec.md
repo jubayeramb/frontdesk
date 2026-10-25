@@ -1,10 +1,9 @@
-# Spec Delta
+# human-handoff Specification
 
 ## Purpose
-
 Decides who answers a conversation, the agent or a person, and makes sure the agent stays quiet whenever a person has taken over.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: The agent is silent while a human owns the conversation
 When a conversation is owned by `human`, inbound customer messages SHALL be stored and SHALL not trigger an agent turn or any automated reply.
@@ -73,3 +72,10 @@ Every ownership change SHALL store when it happened and why (customer request, h
 #### Scenario: Audit trail
 - **WHEN** a conversation goes from `ai` to `human` and back
 - **THEN** two system messages record each change with its reason and time
+
+### Requirement: Read receipts whoever owns the conversation
+Every customer message on WhatsApp SHALL be marked read when it arrives, and the typing indicator SHALL show only while the agent owns the conversation.
+
+#### Scenario: Message while a person owns the conversation
+- **WHEN** a customer writes while the owner is `human`
+- **THEN** the message is marked read and no typing indicator is shown

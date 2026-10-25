@@ -8,6 +8,7 @@ const valid = {
   KAPSO_API_KEY: "kapso_test",
   KAPSO_PHONE_NUMBER_ID: "1000000000000001",
   KAPSO_WEBHOOK_SECRET: "test-webhook-secret",
+  NEXT_PUBLIC_WHATSAPP_NUMBER: "15550000000",
   STAFF_PASSWORD: "correct-horse-battery",
   STAFF_SESSION_SECRET: "a".repeat(32),
   CHAT_COOKIE_SECRET: "b".repeat(32),

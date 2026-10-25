@@ -1,6 +1,6 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { safeNextPath } from "./next-path";
+import { nextFromReferer, safeNextPath } from "./next-path";
 
 it.each([
   ["/staff/pricing", "/staff/pricing"],
@@ -13,4 +13,16 @@ it.each([
   [undefined, "/staff"],
 ])("safeNextPath(%s) is %s", (input, expected) => {
   expect(safeNextPath(input)).toBe(expected);
+});
+
+describe("nextFromReferer", () => {
+  it("reads next from the sign-in page address", () => {
+    expect(nextFromReferer("http://localhost:3000/staff/sign-in?next=%2Fstaff%2Fpricing")).toBe("/staff/pricing");
+  });
+
+  it("ignores other pages, a missing header and garbage", () => {
+    expect(nextFromReferer("http://localhost:3000/staff/pricing?next=%2Fstaff")).toBeNull();
+    expect(nextFromReferer(null)).toBeNull();
+    expect(nextFromReferer("not a url")).toBeNull();
+  });
 });

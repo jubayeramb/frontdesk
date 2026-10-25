@@ -26,6 +26,8 @@ export type ChatDeps = {
   db: Db;
   secret: string;
   models: NamedModel[];
+  // Where a visitor who asks for a person is sent, digits only.
+  whatsappNumber?: string;
   // Webhook events left behind by a dead worker are swept after each chat
   // request too, so WhatsApp does not depend on its own traffic to recover.
   handleWebhookEvent: EventHandler;
@@ -114,7 +116,15 @@ async function answerOnce(
   }
 
   try {
-    const turn = await runTurn({ db, conversationId, channel: "web", inbound, now: now(), models: deps.models });
+    const turn = await runTurn({
+      db,
+      conversationId,
+      channel: "web",
+      inbound,
+      now: now(),
+      models: deps.models,
+      whatsappNumber: deps.whatsappNumber,
+    });
     await deliverTurn(db, webAdapter, { conversationId, to: conversationId, turn });
     return turn.replies;
   } catch (error) {

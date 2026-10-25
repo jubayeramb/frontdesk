@@ -20,7 +20,8 @@ Those notes are the only source for "What tripped me up on Kapso".
 
 ### Hosting
 
-Vercel for the app, Neon main branch for production and a `dev` branch for local work.
+Vercel for the app, Neon's default branch for production and a `dev` branch for local work.
+The `dev` branch has a 30-day TTL and can be recreated; the default branch has none, so production data never expires with it.
 Migrations run from a GitHub Actions job on `main` (or by hand before the first deploy), not in the Vercel build, so a failed migration never ships a half-deployed app.
 Alternative: run `drizzle-kit migrate` in the build command.
 Simpler, but couples deploys to schema changes with no rollback point.
@@ -51,7 +52,7 @@ GIF is a 10 to 15 second cut of the web quote for the README.
 
 ## Migration Plan
 
-1. Create the Neon production branch, run migrations and seed.
+1. Point production at Neon's default branch, run migrations and seed.
 2. Create the Vercel project, set every env var from `src/env-schema.ts`, deploy.
 3. Add the DNS record and wait for TLS.
 4. Create the production Kapso webhook (payload v2) and inbox embed, set their secrets, redeploy.

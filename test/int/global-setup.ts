@@ -13,9 +13,11 @@ export default async function setup() {
     await db.execute(sql`create schema public`);
     await migrate(db, { migrationsFolder: "drizzle" });
   } catch (error) {
-    throw new Error(
-      `Could not prepare the test database (start it with \`pnpm db:test:up\`): ${String(error)}`,
-    );
+    const message = `Could not prepare the test database (start it with \`pnpm db:test:up\`): ${String(error)}`;
+    // Vitest 5 can fail while printing a global setup error and hide it, so
+    // the reason is also written out directly.
+    console.error(message);
+    throw new Error(message);
   } finally {
     await pool.end();
   }
