@@ -7,22 +7,21 @@ import { seed } from "@/db/seed-data";
 import { createWhatsAppAdapter } from "@/lib/channels/whatsapp/adapter";
 import { setupTestDb } from "../../../test/int/db";
 import { fakeKapso } from "../../../test/support/fake-kapso";
-import { FIXTURE_SECRET, fixtureRequest } from "../../../test/support/kapso-fixtures";
+import { FIXTURE_SECRET, fixtureRequest, kapsoFixture } from "../../../test/support/kapso-fixtures";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
+import { transition } from "@/lib/ownership";
 import { drain } from "./events";
 import { createKapsoAcknowledger, createKapsoHandler } from "./kapso-handler";
 import { receiveKapsoWebhook } from "./receive";
 
 const db = setupTestDb();
 const CUSTOMER = "8801700000000";
-// Monday 2 November 2026, 10:00 in Dhaka.
-const now = new Date("2026-11-02T10:00:00+06:00");
 
-function setup(script: ScriptStep[]) {
+function setup(script: ScriptStep[], opts: { echoWaitMs?: number } = {}) {
   const kapso = fakeKapso();
   const model = scriptedModel(script);
   const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: "1382322134966757", fetch: kapso.fetch });
-  const handle = createKapsoHandler({ db, adapter, models: [{ id: "primary", model }], now: () => now });
+  const handle = createKapsoHandler({ db, adapter, models: [{ id: "primary", model }], now: () => new Date(), echoWaitMs: opts.echoWaitMs ?? 50 });
   // Runs the after-response work straight away, as a quiet production would.
   const post = async (request: Request) => {
     let work: (() => Promise<void>) | undefined;
@@ -31,7 +30,7 @@ function setup(script: ScriptStep[]) {
       secret: FIXTURE_SECRET,
       phoneNumberId: "1382322134966757",
       handle,
-      acknowledge: createKapsoAcknowledger({ adapter }),
+      acknowledge: createKapsoAcknowledger({ db, adapter }),
       schedule: (w) => void (work = w),
     });
     await work?.();
@@ -151,6 +150,24 @@ describe("whatsapp.message.received", () => {
     expect(kapso.receipts).toHaveLength(1);
   });
 
+  it("stays quiet while a person owns the conversation, marks the message read and keeps it for them", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { kapso, model, post } = setup([{ text: "Hello there." }]);
+    await post(text("wamid.first", "hi"));
+    const [conversation] = await db.select().from(conversations);
+    await transition(db, { conversationId: conversation!.id, event: "customer_requested" });
+
+    await post(text("wamid.during", "thanks, also can you do Friday?"));
+
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(kapso.sends).toHaveLength(1);
+    expect(kapso.receipts.map((r) => [r.message_id, "typing_indicator" in r])).toEqual([
+      ["wamid.first", true],
+      ["wamid.during", false],
+    ]);
+    expect((await stored()).find((m) => m.externalId === "wamid.during")).toMatchObject({ sentBy: "customer", body: "thanks, also can you do Friday?" });
+  });
+
   it("stores an image without running a turn", async () => {
     const { kapso, model, post } = setup([{ text: "unused" }]);
     await post(fixtureRequest("message-received-image"));
@@ -158,6 +175,76 @@ describe("whatsapp.message.received", () => {
     expect(kapso.sends).toHaveLength(0);
     expect(kapso.receipts).toHaveLength(0);
     expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
+  });
+});
+
+describe("whatsapp.message.sent", () => {
+  const inboxReplyId = () => (JSON.parse(kapsoFixture("message-sent-inbox-reply").body) as { message: { id: string } }).message.id;
+
+  it("takes a reply from the inbox as a person taking over, and the agent stays quiet", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { kapso, model, post } = setup([{ text: "Hi! Which tour are you thinking of?" }]);
+    await post(fixtureRequest("message-received-text"));
+
+    await post(fixtureRequest("message-sent-inbox-reply", undefined, { event: "whatsapp.message.sent" }));
+
+    const reply = (await stored()).find((m) => m.externalId === inboxReplyId());
+    expect(reply).toMatchObject({ sentBy: "human", direction: "outbound", body: "Hi, this is a person replying from Kapso dashboard." });
+    const [conversation] = await db.select().from(conversations);
+    expect(conversation!.owner).toBe("human");
+
+    await post(text("wamid.after", "thanks!"));
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(kapso.sends).toHaveLength(1);
+  });
+
+  it("recognizes our own send whose echo arrives before its id is stored", async () => {
+    const { post } = setup([{ text: "unused" }], { echoWaitMs: 300 });
+    await post(fixtureRequest("message-received-text"));
+    const [conversation] = await db.select().from(conversations);
+    // An agent reply mid-send: stored, marked pending, no WhatsApp id yet.
+    const [ours] = await db
+      .insert(messages)
+      .values({ conversationId: conversation!.id, channel: "whatsapp", direction: "outbound", sentBy: "ai", body: "Here are our tours.", deliveryStatus: "pending", clientNonce: "n-1" })
+      .returning();
+    // The send result lands while the echo waits.
+    // Drizzle queries run when awaited, hence the then().
+    setTimeout(() => void db.update(messages).set({ externalId: inboxReplyId(), deliveryStatus: "sent" }).where(eq(messages.id, ours!.id)).then(), 100);
+
+    await post(fixtureRequest("message-sent-inbox-reply", undefined, { event: "whatsapp.message.sent" }));
+
+    expect((await stored()).filter((m) => m.sentBy === "human")).toEqual([]);
+    expect((await db.select().from(conversations))[0]!.owner).toBe("ai");
+  });
+
+  it("takes an unknown message as a person's after three checks, even with a send in flight", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { post } = setup([{ text: "unused" }]);
+    await post(fixtureRequest("message-received-text"));
+    const [conversation] = await db.select().from(conversations);
+    await db.insert(messages).values({ conversationId: conversation!.id, channel: "whatsapp", direction: "outbound", sentBy: "ai", body: "stuck", deliveryStatus: "pending" });
+
+    await post(fixtureRequest("message-sent-inbox-reply", undefined, { event: "whatsapp.message.sent" }));
+
+    const [event] = await db.select().from(webhookEvents).where(eq(webhookEvents.eventType, "whatsapp.message.sent"));
+    expect(event).toMatchObject({ status: "done", attempts: 4 });
+    expect((await db.select().from(conversations))[0]!.owner).toBe("human");
+  });
+});
+
+describe("whatsapp.conversation.ended", () => {
+  it("gives a person-owned conversation back to the agent, which answers the next message", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { kapso, post } = setup([{ text: "Hi again." }, { text: "Your booking is on Fri 30 Oct." }]);
+    await post(fixtureRequest("message-received-text"));
+    const [conversation] = await db.select().from(conversations);
+    await transition(db, { conversationId: conversation!.id, event: "human_replied" });
+
+    await post(fixtureRequest("conversation-ended", undefined, { event: "whatsapp.conversation.ended" }));
+    expect((await db.select().from(conversations))[0]!.owner).toBe("ai");
+
+    await post(text("wamid.back", "what time is my booking?"));
+    expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual(["Hi again.", "Your booking is on Fri 30 Oct."]);
   });
 });
 

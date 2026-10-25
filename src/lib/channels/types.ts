@@ -30,7 +30,8 @@ export interface ChannelAdapter {
   render(reply: AgentReply): OutboundMessage[];
   // Sends one message. `nonce` is ours, so an echo of it can be told apart.
   send(to: string, message: OutboundMessage, opts: { nonce: string }): Promise<SendResult>;
-  // Tells the customer a reply is coming. Best effort: resolves even when the
-  // channel rejects it. Channels that show this themselves leave it out.
-  showTyping?(inboundExternalId: string): Promise<void>;
+  // Marks the customer's message read and, with `typing`, tells them a reply is
+  // coming. Best effort: resolves even when the channel rejects it. Channels
+  // without receipts leave it out.
+  markRead?(inboundExternalId: string, opts: { typing: boolean }): Promise<void>;
 }

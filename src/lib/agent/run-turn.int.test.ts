@@ -9,6 +9,7 @@ import { setupTestDb } from "../../../test/int/db";
 import { newConversation } from "../../../test/int/fixtures";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
 import type { NamedModel } from "./model";
+import { transition } from "@/lib/ownership";
 import { BUSY_REPLY, runTurn, type Inbound } from "./run-turn";
 
 const db = setupTestDb();
@@ -372,5 +373,84 @@ describe("model failures", () => {
     expect(replies).toEqual([{ kind: "text", text: BUSY_REPLY }]);
     expect(error).toHaveBeenCalledWith("turn failed on every model: AI_APICallError 429");
     expect(JSON.stringify(error.mock.calls)).not.toContain("Sundarbans");
+  });
+});
+
+describe("ownership", () => {
+  it("drops the agent's reply when a person takes over during the turn", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { id: conversationId } = await newConversation(db, "whatsapp");
+    // The model is slow; a person replies from the inbox meanwhile.
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        await transition(db, { conversationId, event: "human_replied" });
+        return {
+          content: [{ type: "text", text: "Hi! Which tour are you thinking of?" }],
+          finishReason: { unified: "stop", raw: undefined },
+          usage: { inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 1, text: 1, reasoning: undefined } },
+          warnings: [],
+        };
+      },
+    });
+    const turn = await runTurn({ db, conversationId, channel: "whatsapp", inbound: { text: "hello" }, now, models: only(model) });
+
+    expect(turn).toEqual({ replies: [], messageIds: [] });
+    const reply = (await loadWindow(db, conversationId)).find((m) => m.sentBy === "ai");
+    expect(reply).toMatchObject({ body: "Hi! Which tour are you thinking of?", deliveryStatus: "suppressed" });
+  });
+
+  it("does not run a turn while a person owns the conversation", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { id: conversationId } = await newConversation(db, "whatsapp");
+    await transition(db, { conversationId, event: "customer_requested" });
+    const model = scriptedModel([{ text: "unused" }]);
+
+    const turn = await runTurn({ db, conversationId, channel: "whatsapp", inbound: { text: "are you there?" }, now, models: only(model) });
+
+    expect(turn.replies).toEqual([]);
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect((await loadWindow(db, conversationId)).at(-1)).toMatchObject({ sentBy: "customer", body: "are you there?" });
+  });
+});
+
+describe("handoff", () => {
+  it("hands a WhatsApp customer to a person with one message", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { replies, conversationId } = await turn(
+      [{ tools: [{ name: "requestHuman", input: { reason: "asked_for_person" } }] }, { text: "Sure, connecting you now!" }],
+      { text: "can I talk to a person" },
+      { channel: "whatsapp" },
+    );
+    expect(replies).toEqual([{ kind: "handoff", text: "A person will reply here soon." }]);
+    expect((await getConversation(db, conversationId))?.owner).toBe("human");
+  });
+
+  it("hands a cancellation to a person instead of answering it", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { replies, conversationId } = await turn(
+      [{ tools: [{ name: "requestHuman", input: { reason: "cancel_booking" } }] }, { text: "Done." }],
+      { text: "please cancel my booking" },
+      { channel: "whatsapp" },
+    );
+    expect(replies).toEqual([{ kind: "handoff", text: "A person will reply here soon to help with the cancellation." }]);
+    expect((await getConversation(db, conversationId))?.owner).toBe("human");
+  });
+
+  it("sends a web visitor to WhatsApp and keeps the conversation with the agent", async () => {
+    const conversationId = (await newConversation(db, "web")).id;
+    const model = scriptedModel([{ tools: [{ name: "requestHuman", input: { reason: "asked_for_person" } }] }, { text: "ok" }]);
+    const { replies } = await runTurn({
+      db,
+      conversationId,
+      channel: "web",
+      inbound: { text: "I want to talk to someone" },
+      now,
+      models: only(model),
+      whatsappNumber: "15550000000",
+    });
+    expect(replies).toEqual([
+      { kind: "link", text: "A person from our team replies on WhatsApp.", url: "https://wa.me/15550000000", label: "Continue on WhatsApp" },
+    ]);
+    expect((await getConversation(db, conversationId))?.owner).toBe("ai");
   });
 });

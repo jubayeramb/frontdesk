@@ -61,7 +61,8 @@ export const channelEnum = pgEnum("channel", ["web", "whatsapp"]);
 export const ownerEnum = pgEnum("conversation_owner", ["ai", "human"]);
 export const directionEnum = pgEnum("message_direction", ["inbound", "outbound"]);
 export const senderEnum = pgEnum("message_sender", ["customer", "ai", "human", "system"]);
-export const deliveryEnum = pgEnum("message_delivery", ["pending", "sent", "failed"]);
+// `suppressed`: a reply a person's takeover overtook, kept but never sent.
+export const deliveryEnum = pgEnum("message_delivery", ["pending", "sent", "failed", "suppressed"]);
 
 export const contacts = pgTable("contacts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -171,6 +172,8 @@ export const webhookEvents = pgTable(
     status: webhookStatusEnum("status").notNull().default("pending"),
     attempts: smallint("attempts").notNull().default(0),
     error: text("error"),
+    // A deferred event waits until then, and the customer's later events wait behind it.
+    notBefore: timestamp("not_before", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

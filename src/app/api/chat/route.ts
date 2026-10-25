@@ -16,6 +16,7 @@ export function POST(request: Request) {
     db,
     secret: env.CHAT_COOKIE_SECRET,
     models,
+    whatsappNumber: env.NEXT_PUBLIC_WHATSAPP_NUMBER,
     handleWebhookEvent: handleKapsoEvent,
     schedule: after,
   });

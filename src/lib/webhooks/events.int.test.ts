@@ -104,6 +104,41 @@ describe("drain", () => {
   });
 });
 
+describe("deferred events", () => {
+  it("waits for a deferred event, keeps the ones behind it waiting, then runs them in order", async () => {
+    await storeEvents(db, events("8801700000001", "echo", "next"));
+    const seen: string[] = [];
+    let asked = 0;
+
+    const started = Date.now();
+    await drain(db, "8801700000001", async (e) => {
+      seen.push(idOf(e));
+      // The echo asks to come back once, half a second later.
+      if (idOf(e) === "echo" && asked++ === 0) return { deferMs: 500 };
+    });
+
+    expect(seen).toEqual(["echo", "echo", "next"]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(450);
+    expect(await statuses()).toEqual([
+      ["echo", "done", 2],
+      ["next", "done", 1],
+    ]);
+  });
+
+  it("does not claim a deferred event early, nor anything behind it", async () => {
+    await storeEvents(db, events("8801700000001", "echo", "next"));
+    await db.update(webhookEvents).set({ notBefore: sql`now() + interval '1 minute'` }).where(sql`${webhookEvents.id} = 1`);
+
+    const seen: string[] = [];
+    expect(await drain(db, "8801700000001", async (e) => void seen.push(idOf(e)))).toBe(0);
+    expect(seen).toEqual([]);
+    expect(await statuses()).toEqual([
+      ["echo", "pending", 0],
+      ["next", "pending", 0],
+    ]);
+  });
+});
+
 describe("stale and stuck events", () => {
   it("retries an event whose worker died mid-turn before anything behind it", async () => {
     await storeEvents(db, events("8801700000001", "m1"));

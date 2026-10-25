@@ -51,12 +51,16 @@ export function createWhatsAppAdapter(config: {
         return { ok: false, error: sendError(error) };
       }
     },
-    // Marks the message read and shows "typing…" until our reply, for up to 25 seconds.
-    async showTyping(inboundExternalId) {
+    // With `typing`, WhatsApp shows "typing…" until our reply, for up to 25 seconds.
+    async markRead(inboundExternalId, { typing }) {
       try {
-        await client.messages.markRead({ phoneNumberId, messageId: inboundExternalId, typingIndicator: { type: "text" } });
+        await client.messages.markRead({
+          phoneNumberId,
+          messageId: inboundExternalId,
+          ...(typing && { typingIndicator: { type: "text" as const } }),
+        });
       } catch (error) {
-        console.warn(`whatsapp typing indicator failed: ${sendError(error).code}`);
+        console.warn(`whatsapp read receipt failed: ${sendError(error).code}`);
       }
     },
   };

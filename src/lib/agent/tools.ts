@@ -3,16 +3,24 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Db } from "@/db/client";
-import { tours } from "@/db/schema";
+import { tours, type Channel } from "@/db/schema";
 import { getConversation, updateState } from "@/lib/conversations/store";
 import { bookDeparture } from "@/lib/departures/book";
 import { departureLabel, listDepartures } from "@/lib/departures/departures";
 import { formatBdt } from "@/lib/pricing/format";
 import { getPriceList } from "@/lib/pricing/price-list";
 import { computeQuote, type Quote } from "@/lib/pricing/quote";
-import type { ChoicesReply } from "./replies";
+import { transition } from "@/lib/ownership";
+import type { AgentReply, ChoicesReply } from "./replies";
 
-export type TurnContext = { db: Db; conversationId: string; now: Date };
+export type TurnContext = {
+  db: Db;
+  conversationId: string;
+  now: Date;
+  channel?: Channel;
+  // The number a web visitor is sent to for a person, digits only.
+  whatsappNumber?: string;
+};
 
 // Everything the tools learned this turn. The presenter and the price guard
 // read it instead of trusting the model's text.
@@ -20,6 +28,8 @@ export type TurnRecord = {
   choices?: ChoicesReply;
   choicesOf?: "tours" | "departures";
   booked?: boolean;
+  // Set when the turn handed the customer to a person; it is the whole reply.
+  handoff?: AgentReply;
   amounts: Set<number>;
   quote?: Quote;
 };
@@ -136,10 +146,55 @@ export function createTurnTools(ctx: TurnContext) {
         };
       }),
     }),
+
+    requestHuman: tool({
+      description:
+        "Hand the customer to a person on our team. Use when they ask for a person, or to change or cancel a booking, which you cannot do.",
+      inputSchema: z.object({
+        reason: z.enum(["asked_for_person", "change_booking", "cancel_booking"]),
+      }),
+      execute: guarded("requestHuman", async ({ reason }: { reason: HandoffReason }) => {
+        record.choices = undefined;
+        if (ctx.channel === "whatsapp") {
+          await transition(ctx.db, {
+            conversationId: ctx.conversationId,
+            event: "customer_requested",
+            because: HANDOFF_NOTE[reason],
+          });
+          record.handoff = { kind: "handoff", text: HANDOFF_TEXT[reason] };
+        } else {
+          // People only reply on WhatsApp, so the web visitor is sent there.
+          record.handoff = ctx.whatsappNumber
+            ? {
+                kind: "link",
+                text: "A person from our team replies on WhatsApp.",
+                url: `https://wa.me/${ctx.whatsappNumber}`,
+                label: "Continue on WhatsApp",
+              }
+            : { kind: "text", text: "A person from our team replies on WhatsApp." };
+        }
+        return { ok: true as const, shownToCustomer: "The customer has been told a person will help. Write nothing more." };
+      }),
+    }),
   };
 
   return { tools, record };
 }
+
+type HandoffReason = "asked_for_person" | "change_booking" | "cancel_booking";
+
+const HANDOFF_TEXT: Record<HandoffReason, string> = {
+  asked_for_person: "A person will reply here soon.",
+  change_booking: "A person will reply here soon to change your booking.",
+  cancel_booking: "A person will reply here soon to help with the cancellation.",
+};
+
+// The note staff see in the conversation, so they know what to pick up.
+const HANDOFF_NOTE: Record<HandoffReason, string> = {
+  asked_for_person: "the customer asked for a person",
+  change_booking: "the customer asked to change a booking",
+  cancel_booking: "the customer asked to cancel a booking",
+};
 
 // Said in the result as well as the prompt: the model is likeliest to list the
 // options right after it receives them. It names no widget, because the model

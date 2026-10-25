@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 
 import type { Db } from "@/db/client";
 import {
@@ -71,6 +71,21 @@ export async function findOrCreateConversation(
   });
 }
 
+// The latest conversation behind a channel identity, without creating one.
+export async function findConversation(
+  db: Db,
+  input: { channel: Channel; externalId: string },
+): Promise<Conversation | undefined> {
+  const [row] = await db
+    .select({ conversation: conversations })
+    .from(channelIdentities)
+    .innerJoin(conversations, eq(conversations.contactId, channelIdentities.contactId))
+    .where(and(eq(channelIdentities.channel, input.channel), eq(channelIdentities.externalId, input.externalId)))
+    .orderBy(desc(conversations.createdAt))
+    .limit(1);
+  return row?.conversation;
+}
+
 export async function getConversation(db: Db, id: string): Promise<Conversation | undefined> {
   const [row] = await db.select().from(conversations).where(eq(conversations.id, id));
   return row;
@@ -85,7 +100,7 @@ export type NewMessage = {
   payload?: Record<string, unknown>;
   clientNonce?: string;
   externalId?: string;
-  deliveryStatus?: "pending" | "sent" | "failed";
+  deliveryStatus?: "pending" | "sent" | "failed" | "suppressed";
 };
 
 export async function appendMessage(db: Db, message: NewMessage): Promise<Message> {
@@ -186,6 +201,25 @@ export async function markFailed(
     .where("id" in target ? eq(messages.id, target.id) : eq(messages.externalId, target.externalId))
     .returning({ id: messages.id });
   return rows.length > 0;
+}
+
+// Whether an agent send in this conversation is still waiting for the
+// channel's id, so an unknown echo may yet turn out to be ours.
+export async function hasSendInFlight(db: Db, conversationId: string, since: Date): Promise<boolean> {
+  const [row] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.sentBy, "ai"),
+        eq(messages.deliveryStatus, "pending"),
+        isNull(messages.externalId),
+        gt(messages.createdAt, since),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
 }
 
 export async function findByExternalId(db: Db, externalId: string): Promise<Message | undefined> {

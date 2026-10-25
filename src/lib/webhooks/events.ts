@@ -10,7 +10,13 @@ export const STALE_AFTER = sql`interval '2 minutes'`;
 // Enough for any one customer's burst; the next request picks up the rest.
 const MAX_PER_DRAIN = 25;
 
-export type EventHandler = (event: WebhookEvent) => Promise<void>;
+// A handler that cannot decide yet (an echo of a send whose id is not stored
+// yet) asks to be called again later instead of finishing.
+export type EventHandler = (event: WebhookEvent) => Promise<void | { deferMs: number }>;
+
+// How long a drain waits in place for a deferred event before leaving it to
+// the next request or the sweep.
+const MAX_WAIT_MS = 15_000;
 
 // Stores each event once. Returns the events stored for the first time, and
 // the partitions the delivery touched, including ones whose events were
@@ -37,8 +43,10 @@ export async function storeEvents(
 
 // Claims the oldest pending event of a partition, unless another worker is
 // still processing one there. The transaction-scoped advisory lock makes the
-// check and the claim one step, so two workers can never both start.
-export async function claimNext(db: Db, partitionKey: string): Promise<WebhookEvent | null> {
+// check and the claim one step, so two workers can never both start. A
+// deferred head is not claimed early, and nothing behind it overtakes it:
+// the result says when to come back instead.
+export async function claimNext(db: Db, partitionKey: string): Promise<WebhookEvent | { waitUntil: Date } | null> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${partitionKey}, 0))`);
     // A dead worker's event goes back in line first, so it is not overtaken.
@@ -57,12 +65,13 @@ export async function claimNext(db: Db, partitionKey: string): Promise<WebhookEv
     if (busy) return null;
 
     const [next] = await tx
-      .select({ id: webhookEvents.id })
+      .select({ id: webhookEvents.id, notBefore: webhookEvents.notBefore, ready: sql<boolean>`${webhookEvents.notBefore} is null or ${webhookEvents.notBefore} <= now()` })
       .from(webhookEvents)
       .where(and(eq(webhookEvents.partitionKey, partitionKey), eq(webhookEvents.status, "pending")))
       .orderBy(asc(webhookEvents.createdAt), asc(webhookEvents.id))
       .limit(1);
     if (!next) return null;
+    if (!next.ready) return { waitUntil: next.notBefore! };
 
     const [claimed] = await tx
       .update(webhookEvents)
@@ -71,6 +80,13 @@ export async function claimNext(db: Db, partitionKey: string): Promise<WebhookEv
       .returning();
     return claimed ?? null;
   });
+}
+
+async function defer(db: Db, event: WebhookEvent, ms: number): Promise<void> {
+  await db
+    .update(webhookEvents)
+    .set({ status: "pending", notBefore: sql`now() + make_interval(secs => ${ms / 1000})`, updatedAt: sql`now()` })
+    .where(eq(webhookEvents.id, event.id));
 }
 
 async function finish(db: Db, event: WebhookEvent, error?: unknown): Promise<void> {
@@ -96,12 +112,23 @@ export async function drain(db: Db, partitionKey: string, handle: EventHandler):
   while (processed < MAX_PER_DRAIN) {
     const event = await claimNext(db, partitionKey);
     if (!event) break;
+    if ("waitUntil" in event) {
+      const wait = event.waitUntil.getTime() - Date.now();
+      if (wait > MAX_WAIT_MS) break;
+      await new Promise((resolve) => setTimeout(resolve, Math.max(wait, 0) + 50));
+      continue;
+    }
+    let result: Awaited<ReturnType<EventHandler>>;
     try {
-      await handle(event);
+      result = await handle(event);
     } catch (error) {
       await finish(db, event, error);
       console.error(`webhook event ${event.id} (${event.eventType}) failed on attempt ${event.attempts}: ${errorClass(error)}`);
       break;
+    }
+    if (result?.deferMs) {
+      await defer(db, event, result.deferMs);
+      continue;
     }
     await finish(db, event);
     processed++;

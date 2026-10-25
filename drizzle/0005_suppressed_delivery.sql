@@ -1,0 +1,1 @@
+ALTER TYPE "public"."message_delivery" ADD VALUE 'suppressed';

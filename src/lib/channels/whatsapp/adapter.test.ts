@@ -11,10 +11,12 @@ describe("WhatsApp adapter typing indicator", () => {
     const fetchSpy = vi.fn(kapso.fetch);
     const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: PHONE_NUMBER_ID, fetch: fetchSpy as typeof fetch });
 
-    await adapter.showTyping!("wamid.inbound-1");
+    await adapter.markRead!("wamid.inbound-1", { typing: true });
+    await adapter.markRead!("wamid.inbound-2", { typing: false });
 
     expect(kapso.receipts).toEqual([
       { messaging_product: "whatsapp", status: "read", message_id: "wamid.inbound-1", typing_indicator: { type: "text" } },
+      { messaging_product: "whatsapp", status: "read", message_id: "wamid.inbound-2" },
     ]);
     expect(String(fetchSpy.mock.calls[0]![0])).toContain(`/${PHONE_NUMBER_ID}/messages`);
     expect(kapso.sends).toEqual([]);
@@ -26,8 +28,8 @@ describe("WhatsApp adapter typing indicator", () => {
     kapso.failReceipts(400, { error: { message: "Invalid message id", type: "OAuthException", code: 100 } });
     const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: PHONE_NUMBER_ID, fetch: kapso.fetch });
 
-    await expect(adapter.showTyping!("wamid.gone")).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalledWith("whatsapp typing indicator failed: 100");
+    await expect(adapter.markRead!("wamid.gone", { typing: true })).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith("whatsapp read receipt failed: 100");
     warn.mockRestore();
   });
 });

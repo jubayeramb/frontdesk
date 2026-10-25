@@ -35,6 +35,8 @@ export async function runTurn(input: {
   inbound: Inbound;
   now: Date;
   models: NamedModel[];
+  // Where a web visitor is sent to reach a person, digits only.
+  whatsappNumber?: string;
   // Called once per answered turn; usage feeds limits and the write-up.
   onModelResult?: (info: { modelId: string; steps: number; inputTokens: number; outputTokens: number }) => void;
 }): Promise<TurnResult> {
@@ -42,7 +44,7 @@ export async function runTurn(input: {
   const conversation = await getConversation(db, conversationId);
   if (!conversation) throw new Error(`Unknown conversation ${conversationId}`);
 
-  await appendMessage(db, {
+  const inboundRow = await appendMessage(db, {
     conversationId,
     channel,
     direction: "inbound",
@@ -52,9 +54,12 @@ export async function runTurn(input: {
     externalId: inbound.externalId,
     clientNonce: inbound.clientNonce,
   });
+  // A person owns the conversation: the message is kept for them, and the
+  // agent stays quiet.
+  if (conversation.owner === "human") return { replies: [], messageIds: [] };
 
   const history = await loadWindow(db, conversationId);
-  const { tools, record } = createTurnTools({ db, conversationId, now });
+  const { tools, record } = createTurnTools({ db, conversationId, now, channel, whatsappNumber: input.whatsappNumber });
   const system = buildSystemPrompt({ channel, state: conversation.state, now });
 
   const outcome = await withFallback(input.models, (model) =>
@@ -102,13 +107,21 @@ export async function runTurn(input: {
     // A booking confirmation speaks for itself; a fresh quote must show its total.
     const reply = record.booked ? guarded.text : ensureQuoteTotal(guarded.text, record.quote);
     replies = [];
-    if (reply) replies.push({ kind: "text", text: reply });
-    if (record.choices) replies.push(record.choices);
+    if (record.handoff) {
+      // One handoff message, whatever else the model wrote.
+      replies.push(record.handoff);
+    } else {
+      if (reply) replies.push({ kind: "text", text: reply });
+      if (record.choices) replies.push(record.choices);
+    }
     if (replies.length === 0) {
       replies.push({ kind: "text", text: "Sorry, I didn't get that. Which tour are you interested in?" });
     }
   }
 
+  // A person may have taken over while the model was working; their reply wins.
+  // The turn's own handoff made the owner human; that reply still goes out.
+  const takenOver = !record.handoff && (await getConversation(db, conversationId))?.owner === "human";
   const stored = await appendMessages(
     db,
     conversationId,
@@ -119,8 +132,13 @@ export async function runTurn(input: {
       sentBy: "ai" as const,
       body: reply.kind === "choices" ? reply.prompt : reply.text,
       payload: reply,
+      ...(takenOver ? { deliveryStatus: "suppressed" as const } : {}),
     })),
   );
+  if (takenOver) {
+    console.info(`turn after message ${inboundRow.id} suppressed: a person took over`);
+    return { replies: [], messageIds: [] };
+  }
   return { replies, messageIds: stored.map((m) => m.id) };
 }
 
