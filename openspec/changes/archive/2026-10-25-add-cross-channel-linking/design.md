@@ -20,7 +20,9 @@ The web branch of `requestHuman` returns a plain `wa.me` link (add-human-handoff
 ### Code format
 
 `TR-` plus 6 characters from Crockford base32 without `I`, `L`, `O`, `U` (32 symbols, about 1 billion codes).
-Parsing is case-insensitive and tolerates spaces after `TR-`.
+Parsing is case-insensitive, tolerates spaces after `TR-`, and reads look-alikes the Crockford way (`O` as `0`, `I` and `L` as `1`).
+A code always holds at least one letter, and an all-digit match is skipped, so a booking reference such as `TR-100006` is never read as a code.
+With two codes in one message, the first counts.
 `link_codes(code pk, conversation_id, expires_at, used_at, used_by_identity)`.
 
 ### Link transaction
@@ -29,9 +31,12 @@ On `message.received`, before the turn:
 1. Find a code in the text.
    None: normal turn.
 2. `UPDATE link_codes SET used_at = now(), used_by_identity = $id WHERE code = $c AND used_at IS NULL AND expires_at > now() RETURNING conversation_id`.
-   No row: tell the agent the code is invalid or expired via a system note.
+   No row: if this number already used the code (a retried message), it still counts; otherwise the turn is told the code is expired or used.
 3. In the same transaction: re-point the WhatsApp identity to the web contact, close the number's other open conversation if any (kept, `closed_at` set), set the web conversation's `kapso_conversation_id` and `wa_last_inbound_at`, and store the inbound message on it.
-4. Run the turn with a system note "Customer continued from the website" in place of the code text.
+4. Run the turn. The inbound message is stored as the customer wrote it, with `payload.link` set to `continued` or `rejected`; the model sees a fixed sentence for it ("I'm continuing my website chat here on WhatsApp." or "I have a code from the website chat, but it has expired or was already used.") and never the code.
+   A system note "Customer continued from the website on WhatsApp." marks the move for staff and the timeline.
+
+Lookups for "the conversation behind this identity" skip closed conversations.
 
 The atomic `UPDATE ... RETURNING` makes single use hold under races without a lock.
 
@@ -43,8 +48,11 @@ Returns a `link` reply with `https://wa.me/<number>?text=` plus the URL-encoded 
 
 ### Timeline
 
-`/c` is a server component reading the conversation from the chat cookie, plus a small client component that polls `GET /api/chat?since=<id>` every 5 seconds while the tab is visible.
-Rows render `customer`, `ai` and `human` messages; `system` messages render only for ownership changes, as a plain line ("A person joined").
+`/c` is a server component reading the conversation from the chat cookie, plus the same small client component as `/staff` that calls `router.refresh()` every 5 seconds while the tab is visible.
+One refresh pattern across the app beats a second, `since`-based API shape for a page that shows at most 200 messages.
+The chat widget's header links to `/c`.
+Rows render `customer`, `ai` and `human` messages; `system` messages render only for ownership changes and the move to WhatsApp, as a plain line ("A person joined", "Continued on WhatsApp").
+Links and suppressed replies are left out; offered options show as plain labels.
 
 Alternative: server-sent events.
 Nicer, but long-lived connections on serverless cost more than 5-second polls for a page few people keep open.
