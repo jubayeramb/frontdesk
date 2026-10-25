@@ -9,7 +9,7 @@ import { bookDeparture } from "@/lib/departures/book";
 import { departureLabel, listDepartures } from "@/lib/departures/departures";
 import { formatBdt } from "@/lib/pricing/format";
 import { getPriceList } from "@/lib/pricing/price-list";
-import { computeQuote, type Quote } from "@/lib/pricing/quote";
+import { computeQuote, matchTour, type Quote } from "@/lib/pricing/quote";
 import { transition } from "@/lib/ownership";
 import type { AgentReply, ChoicesReply } from "./replies";
 
@@ -221,7 +221,7 @@ function guarded<I, O>(name: string, execute: (input: I) => Promise<O>) {
 }
 
 export async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: string) {
-  const [tour] = await ctx.db.select().from(tours).where(eq(tours.slug, tourSlug));
+  const tour = matchTour(await ctx.db.select().from(tours), tourSlug);
   if (!tour || !tour.active) {
     return { ok: false as const, error: `There is no bookable tour called "${tourSlug}".` };
   }

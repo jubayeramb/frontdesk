@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { formatBdt } from "./format";
-import { computeQuote, type PriceList } from "./quote";
+import { computeQuote, matchTour, type PriceList } from "./quote";
 
 const priceList: PriceList = {
   version: 7,
@@ -48,6 +48,25 @@ describe("computeQuote", () => {
   it("rejects an unknown tour", () => {
     const result = computeQuote(priceList, { tourSlug: "cox", travelers: 2 });
     expect(result).toMatchObject({ ok: false, error: { code: "unknown_tour" } });
+  });
+});
+
+describe("matchTour", () => {
+  const tours = [{ slug: "sundarbans" }, { slug: "sylhet" }, { slug: "bandarban" }];
+
+  it.each([
+    ["sylhet", "sylhet"],
+    ["Sylhet", "sylhet"],
+    ["Sylhet tour", "sylhet"],
+    ["the sylhet tea gardens trip", "sylhet"],
+    ["sylhet-tea-gardens", "sylhet"],
+    ["sundarbans_boat", "sundarbans"],
+  ])("matches %s to %s", (text, slug) => {
+    expect(matchTour(tours, text)?.slug).toBe(slug);
+  });
+
+  it.each(["Sylhet or Bandarban", "cox's bazar", "", "sylhets"])("matches nothing for %j", (text) => {
+    expect(matchTour(tours, text)).toBeUndefined();
   });
 });
 

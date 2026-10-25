@@ -7,7 +7,7 @@ import { firstMessage } from "./first-message";
 import { dropListedOptions, dropOptionIds } from "./listed-options";
 import { stripDateLists, asksForDeparture } from "./date-lists";
 import { describeError, withFallback, type NamedModel } from "./model";
-import { ensureQuoteTotal, guardPrices } from "./price-guard";
+import { ensureQuoteTotal, guardPrices, inTaka } from "./price-guard";
 import { buildSystemPrompt } from "./prompt";
 import type { AgentReply, ChoiceOption } from "./replies";
 import { createTurnTools, offerDepartures } from "./tools";
@@ -84,7 +84,7 @@ export async function runTurn(input: {
       inputTokens: outcome.value.totalUsage.inputTokens ?? 0,
       outputTokens: outcome.value.totalUsage.outputTokens ?? 0,
     });
-    let text = dropOptionIds(firstMessage(outcome.value.text.trim()));
+    let text = inTaka(dropOptionIds(firstMessage(outcome.value.text.trim())));
     // A reply that asks for a departure but lists none this turn (dates copied
     // from an earlier message, or "which departure?" with nothing to pick) gets
     // the quoted tour's real departures.

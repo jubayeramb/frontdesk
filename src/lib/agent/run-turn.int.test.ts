@@ -33,6 +33,18 @@ async function turn(script: ScriptStep[], inbound: Inbound, opts: { channel?: Ch
 const lastPrompt = (model: MockLanguageModelV4) => JSON.stringify(model.doGenerateCalls.at(-1)?.prompt);
 
 describe("prices", () => {
+  it("finds the tour from the customer's words and shows prices in taka", async () => {
+    await seed(db);
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "getQuote", input: { tourSlug: "Sylhet tour", travelers: 2 } }] },
+        { text: "The Sylhet tea gardens tour is ₹17,000 in total (₹8,500 per person)." },
+      ],
+      { text: "How much is the Sylhet tour for 2?" },
+    );
+    expect(replies).toEqual([{ kind: "text", text: "The Sylhet tea gardens tour is ৳17,000 in total (৳8,500 per person)." }]);
+  });
+
   it("quotes through the tool and the reply holds the tool's total", async () => {
     await seed(db);
     const { replies, model, conversationId } = await turn(
