@@ -73,3 +73,10 @@ Every ownership change SHALL store when it happened and why (customer request, h
 #### Scenario: Audit trail
 - **WHEN** a conversation goes from `ai` to `human` and back
 - **THEN** two system messages record each change with its reason and time
+
+### Requirement: Read receipts whoever owns the conversation
+Every customer message on WhatsApp SHALL be marked read when it arrives, and the typing indicator SHALL show only while the agent owns the conversation.
+
+#### Scenario: Message while a person owns the conversation
+- **WHEN** a customer writes while the owner is `human`
+- **THEN** the message is marked read and no typing indicator is shown
