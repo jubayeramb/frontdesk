@@ -63,6 +63,9 @@ Kapso needs a public URL for webhooks, so run the app behind a Cloudflare quick 
    Leave buffering off.
 4. Message the demo number from a phone. `curl -X POST <url>/api/webhooks/kapso` with no signature should return 401.
 
+The site also works from a phone at the tunnel URL or the Mac's local network address (`http://192.168.x.x:3000`).
+`allowedDevOrigins` in `next.config.ts` lets those origins load the dev scripts; any other host needs an entry there, or the page renders but no button works.
+
 Kapso's test button sends `"test": true` deliveries. They are acknowledged and dropped, so they never reach the agent.
 
 ### Staff inbox
