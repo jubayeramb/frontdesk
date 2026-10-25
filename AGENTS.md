@@ -46,6 +46,8 @@ Copy `.env.example` to `.env.local` before running anything that touches the dat
 | `STAFF_PASSWORD` | The shared password for `/staff` (12+ characters) |
 | `STAFF_SESSION_SECRET` | Signs staff session cookies (32+ characters, `openssl rand -hex 32`). Rotating it, or the password, signs everyone out |
 | `CHAT_COOKIE_SECRET` | Signs the web chat's `fd_conv` cookie (32+ characters). Rotating it starts every visitor on a new conversation |
+| `GLOBAL_DAILY_TURN_CAP` | Optional. Agent turns per UTC day for everyone together, default 250 |
+| `CRON_SECRET` | Vercel's daily cron sends it to `/api/cron/retention` (16+ characters, `openssl rand -hex 32`). Set it in Vercel before the first run |
 
 ### WhatsApp in development
 
@@ -85,6 +87,27 @@ A reply from the inbox takes the conversation over from the agent; "Hand back to
 
 The URL is only rendered inside the session-checked part of `/staff`; never log it or put it in a public page.
 
+### Limits, the reply window and retention
+
+`checkGuards` in `src/lib/guards.ts` runs before every model call, on both channels, in this order:
+
+1. A person owns the conversation: the message is kept for them, with no reply.
+2. An image, sticker, location or other non-text message: the fixed reply "I can only read text for now."
+3. Everyone together has used `GLOBAL_DAILY_TURN_CAP` turns today (UTC): "The demo is resting for today. Try again tomorrow."
+4. The contact has used 20 turns in the last hour or 60 today (UTC), across both channels: "You've hit the demo limit. Try again in a bit."
+
+A limit reply goes out once per window; later messages are kept with no reply.
+Reactions get nothing at all, and the model reads at most 1,000 characters of one message.
+Each turn that calls the model writes a `turns` row with its token counts, and only those rows count toward the limits.
+
+WhatsApp replies are only sent within 24 hours of the customer's last message.
+A reply ready after that is stored as `blocked` with the reason, and `/c` and `/staff` show the time left or "Window closed".
+
+Vercel runs `GET /api/cron/retention` daily at 21:00 UTC (`vercel.json`).
+It deletes conversations with no activity for 7 days, with their messages, bookings, link codes and turns, then contacts left without a conversation, then webhook events finished or failed more than 7 days ago.
+To run it by hand: `curl -H "Authorization: Bearer $CRON_SECRET" <url>/api/cron/retention`.
+Kapso keeps its own copy of WhatsApp messages, outside this job.
+
 ### Next.js 16 notes
 
 - `cacheComponents` is on. Anything that reads cookies, search params or the session goes in a component inside `<Suspense>`; the page and layout around it stay static.
@@ -100,11 +123,12 @@ The URL is only rendered inside the session-checked part of `/staff`; never log 
 - **Every outbound send is stored before it goes out.** The row gets a nonce and `pending`, then the WhatsApp id or the error. `deliverTurn` is the only path from replies to a channel.
 - **Ownership is stored on the conversation.** The agent never replies while a human owns it. Hand-back or Kapso ending the conversation returns it to the agent. `transition()` in `src/lib/ownership.ts` is the only code that changes the owner, and it records why.
 - **An outbound message we never sent is a person in the inbox.** Kapso's `message.sent` cannot tell inbox replies from our sends, so the message id decides; an unknown id waits up to 15 seconds if one of our sends is still waiting for its id.
-- **Free-form WhatsApp sends respect the 24-hour window.** `replyPolicy` decides, not the caller.
+- **Free-form WhatsApp sends respect the 24-hour window.** `replyPolicy` decides, not the caller, and `deliverTurn` checks it when the turn is ready.
+- **Guards run before the model.** `checkGuards` is the only place that decides whether a turn runs, and refused turns never count toward a limit.
 - **The agent stays scoped to Triplone Tours.** It refuses unrelated requests.
 - **Tools do the math.** Tools take raw inputs (tour, travelers, departure id) and compute totals in code. The model never adds or multiplies.
 - **A price guard checks every reply.** Any currency amount that no tool returned this turn, and that isn't the stored quote or booking, replaces the reply with one built from the quote.
-- **Model failover is in code.** `withFallback` moves from `openai/gpt-oss-120b` to `openai/gpt-oss-20b` on a 429, 5xx or network error, with SDK retries off. If both fail, the customer gets the busy reply.
+- **Model failover is in code.** `withFallback` moves from `openai/gpt-oss-120b` to `openai/gpt-oss-20b` on a 429, 5xx or network error, or when Groq could not parse the model's own output, with SDK retries off. If both fail, the customer gets the busy reply.
 - **The model sees 20 messages.** Older context lives in the conversation's `state` (latest quote and booking), which goes into the system prompt.
 - **The business side stays minimal.** Tours, a per-person price in BDT, departures and bookings. Spend effort on the Kapso and agent parts, not on tour operations.
 

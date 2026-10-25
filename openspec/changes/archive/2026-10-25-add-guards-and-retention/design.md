@@ -23,7 +23,10 @@ The 8,000 tokens a minute limit is tighter in bursts; the model fallback and the
 
 ### Guard order
 
-`checkGuards(conv, inbound, now)` returns `run`, `reply(text)` or `silent`, checked in this order: inbound type, owner (from add-human-handoff), global cap, per-contact limits.
+Silent messages (reactions, statuses) are dropped by the drain handler before anything is stored.
+`checkGuards(conv, inbound, now)` then returns `run`, `reply(text)` or `silent`, checked in this order: owner (from add-human-handoff), unsupported type, global cap, per-contact limits.
+The owner goes before the unsupported type because the person sees a photo in Kapso's inbox; a fixed "text only" reply from the agent there would be wrong.
+`runTurn` calls `checkGuards` right after storing the inbound message, so the drain handler and `/api/chat` share it without either calling it directly.
 The window check lives in `replyPolicy`, at send time, because the turn may finish later than it started.
 
 ### Counting turns
@@ -31,6 +34,8 @@ The window check lives in `replyPolicy`, at send time, because the turn may fini
 A `turns(id, contact_id, conversation_id, created_at, model, input_tokens, output_tokens)` row is written for each model call.
 Limits count rows with indexed queries (`contact_id, created_at`); the global cap counts today's rows.
 A `limit_notified_at` on the contact stores when the last limit reply went out, so the reply goes once per window.
+No turn runs while a limit holds, so the latest counted turn marks when the limit was reached: a contact told after that has already heard it.
+One conditional update sets the timestamp and decides, so two messages at once still get one reply.
 The same table gives per-turn token numbers for the write-up.
 
 Alternative: a counter table with hour and day buckets.
