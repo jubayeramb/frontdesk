@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { withFallback, type NamedModel } from "./model";
 
-function failing(statusCode: number | undefined): MockLanguageModelV4 {
+function failing(statusCode: number | undefined, responseBody?: string): MockLanguageModelV4 {
   return new MockLanguageModelV4({
     doGenerate: async () => {
       throw new APICallError({
@@ -12,10 +12,22 @@ function failing(statusCode: number | undefined): MockLanguageModelV4 {
         url: "https://api.groq.com/openai/v1/chat/completions",
         requestBodyValues: {},
         statusCode,
+        responseBody,
       });
     },
   });
 }
+
+// Groq's 400 when the model's own output could not be parsed, as seen live on 2026-10-25.
+const groqFailedGeneration = (code: string) =>
+  JSON.stringify({
+    error: {
+      message: "Parsing failed. The model generated output that could not be parsed. Please adjust your prompt. See 'failed_generation' for more details.",
+      type: "invalid_request_error",
+      code,
+      failed_generation: "...",
+    },
+  });
 
 function answering(text: string): MockLanguageModelV4 {
   return new MockLanguageModelV4({
@@ -44,6 +56,15 @@ describe("withFallback", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = await run([
       { id: "primary", model: failing(status) },
+      { id: "fallback", model: answering("from fallback") },
+    ]);
+    expect(result).toEqual({ ok: true, value: "from fallback", modelId: "fallback" });
+  });
+
+  it.each(["output_parse_failed", "tool_use_failed"])("moves to the next model when Groq could not parse the model's output (%s)", async (code) => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await run([
+      { id: "primary", model: failing(400, groqFailedGeneration(code)) },
       { id: "fallback", model: answering("from fallback") },
     ]);
     expect(result).toEqual({ ok: true, value: "from fallback", modelId: "fallback" });

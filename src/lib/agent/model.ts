@@ -39,7 +39,21 @@ export function shouldFallBack(error: unknown): boolean {
   const cause = RetryError.isInstance(error) ? error.lastError : error;
   if (!APICallError.isInstance(cause)) return false;
   const status = cause.statusCode;
-  return status === undefined || status === 429 || status >= 500;
+  return status === undefined || status === 429 || status >= 500 || failedGeneration(cause);
+}
+
+// Groq answers 400 when the model itself wrote output it cannot parse, such as
+// a malformed tool call. The request was fine, so another model may manage.
+const FAILED_GENERATION_CODES = new Set(["output_parse_failed", "tool_use_failed"]);
+
+function failedGeneration(error: APICallError): boolean {
+  if (error.statusCode !== 400 || !error.responseBody) return false;
+  try {
+    const code = (JSON.parse(error.responseBody) as { error?: { code?: unknown } }).error?.code;
+    return typeof code === "string" && FAILED_GENERATION_CODES.has(code);
+  } catch {
+    return false;
+  }
 }
 
 // Error class and status only: never the prompt or the customer's message.
