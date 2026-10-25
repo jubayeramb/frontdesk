@@ -42,6 +42,13 @@ export function whatsappLink(number: string, code: string): string {
   return `https://wa.me/${number}?text=${encodeURIComponent(prefilledMessage(code))}`;
 }
 
+// The home page's WhatsApp button: a new conversation, so no code.
+export const START_GREETING = "Hi! I'd like to ask about your tours.";
+
+export function whatsappStartLink(number: string): string {
+  return `https://wa.me/${number}?text=${encodeURIComponent(START_GREETING)}`;
+}
+
 // A new code for a web conversation, valid for 15 minutes.
 export async function createLinkCode(db: Db, conversationId: string, now: Date): Promise<string> {
   for (;;) {

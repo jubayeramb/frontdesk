@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { AutoRefresh } from "@/components/auto-refresh";
 import { db } from "@/db";
 import { env } from "@/env";
 import { requireStaff } from "@/lib/staff/auth";
 import { listHandedOver, type HandedOver } from "@/lib/staff/conversations";
-import { AutoRefresh } from "./auto-refresh";
 import { HandBackButton } from "./hand-back-button";
 
 export const metadata: Metadata = { title: "Inbox | Triplone Tours staff" };

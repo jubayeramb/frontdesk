@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CODE_ALPHABET, findCode, generateCode, prefilledMessage, whatsappLink } from "./linking";
+import { CODE_ALPHABET, findCode, generateCode, prefilledMessage, START_GREETING, whatsappLink, whatsappStartLink } from "./linking";
 
 describe("generateCode", () => {
   it("makes TR- plus 6 characters from the alphabet, always with a letter", () => {
@@ -49,5 +49,12 @@ describe("findCode", () => {
 describe("whatsappLink", () => {
   it("opens WhatsApp with the prefilled message", () => {
     expect(whatsappLink("15550000000", "TR-7KQ2MX")).toBe("https://wa.me/15550000000?text=Hi!%20My%20code%20is%20TR-7KQ2MX");
+  });
+});
+
+describe("whatsappStartLink", () => {
+  it("opens WhatsApp with a greeting that holds no code", () => {
+    expect(whatsappStartLink("15550000000")).toBe("https://wa.me/15550000000?text=Hi!%20I'd%20like%20to%20ask%20about%20your%20tours.");
+    expect(findCode(START_GREETING)).toBeNull();
   });
 });

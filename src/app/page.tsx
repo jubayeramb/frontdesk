@@ -1,6 +1,13 @@
+import { cn } from "cn";
+import { ExternalLink, MessageCircle } from "lucide-react";
+
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { SiteHeader } from "@/components/site-header";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DEFAULT_TOURS } from "@/db/seed-data";
+import { env } from "@/env";
+import { whatsappStartLink } from "@/lib/linking";
 
 const WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
@@ -8,17 +15,30 @@ const WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
-      <p className="bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-950 dark:bg-amber-950 dark:text-amber-100">
-        Demo business. No real bookings.
-      </p>
+      <SiteHeader />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16 sm:px-6">
         <section className="py-16 sm:py-24">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Triplone Tours</h1>
           <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
             Small-group tours across Bangladesh, leaving from Dhaka.
-            Ask the front desk in the chat for a price for your group, pick a departure and book.
+            Ask the front desk for a price for your group, here or on WhatsApp, pick a departure and book.
           </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a href="#chat" className={cn(buttonVariants({ size: "lg" }), "h-11 px-4")}>
+              <MessageCircle aria-hidden />
+              Chat on the website
+            </a>
+            <a
+              href={whatsappStartLink(env.NEXT_PUBLIC_WHATSAPP_NUMBER)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-11 px-4")}
+            >
+              Chat on WhatsApp
+              <ExternalLink aria-hidden />
+            </a>
+          </div>
         </section>
 
         <section aria-labelledby="tours" className="space-y-6">

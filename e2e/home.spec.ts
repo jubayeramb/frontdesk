@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import { E2E_ENV } from "./env";
+
 test("the demo banner is the first thing on the page", async ({ page }) => {
   await page.goto("/");
   const banner = page.getByText("Demo business. No real bookings.");
@@ -19,6 +21,58 @@ test("the landing page describes the tours and sends prices to the chat", async 
   // No price table: prices live in the database and come from the chat.
   await expect(page.locator("main")).not.toContainText("৳");
   await expect(page.locator("main")).not.toContainText(/\d{1,3},\d{3}/);
+});
+
+test("the header's Chat link opens the panel, and closing it keeps it closed after a reload", async ({ page }) => {
+  await page.goto("/");
+  const chat = page.getByRole("dialog", { name: "Triplone Tours front desk" });
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Chat" }).click();
+  await expect(chat).toBeVisible();
+  await expect(page).toHaveURL(/\/#chat$/);
+
+  await chat.getByRole("button", { name: "Close chat" }).click();
+  await expect(chat).toBeHidden();
+  await expect(page).not.toHaveURL(/#chat/);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Chat with us" })).toBeVisible();
+  await expect(chat).toBeHidden();
+
+  // The link opens it again once the hash is gone.
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Chat" }).click();
+  await expect(chat).toBeVisible();
+});
+
+test("the header's Chat link on /c opens the panel on the home page", async ({ page }) => {
+  await page.goto("/c");
+  await expect(page.getByText("Demo business. No real bookings.")).toBeInViewport();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Chat" }).click();
+  await expect(page).toHaveURL(/\/#chat$/);
+  await expect(page.getByRole("dialog", { name: "Triplone Tours front desk" })).toBeVisible();
+});
+
+test("the header's Conversation link goes to /c", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Conversation" }).click();
+  await expect(page).toHaveURL(/\/c$/);
+  await expect(page.getByRole("heading", { name: "Your conversation", level: 1 })).toBeVisible();
+});
+
+test("the header's Staff link goes to the staff sign-in", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Staff" }).click();
+  await expect(page).toHaveURL(/\/staff\/sign-in/);
+});
+
+test("the hero offers the website chat and WhatsApp", async ({ page }) => {
+  await page.goto("/");
+  const whatsapp = page.getByRole("link", { name: "Chat on WhatsApp" });
+  await expect(whatsapp).toHaveAttribute("target", "_blank");
+  const url = new URL((await whatsapp.getAttribute("href"))!);
+  expect(url.origin + url.pathname).toBe(`https://wa.me/${E2E_ENV.NEXT_PUBLIC_WHATSAPP_NUMBER}`);
+  expect(url.searchParams.get("text")).toBe("Hi! I'd like to ask about your tours.");
+
+  await page.getByRole("link", { name: "Chat on the website" }).click();
+  await expect(page.getByRole("dialog", { name: "Triplone Tours front desk" })).toBeVisible();
 });
 
 test("the footer has the retention and privacy note", async ({ page }) => {

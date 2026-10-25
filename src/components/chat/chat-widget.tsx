@@ -3,7 +3,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { cn } from "cn";
 import { ExternalLink, MessageCircle, SendHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SubmitEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type SubmitEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,10 @@ export function ChatWidget() {
   // where the visitor left off.
   function changeOpen(next: boolean) {
     setOpen(next);
+    // Closing drops #chat, so the link opens the panel again and a reload doesn't.
+    if (!next && window.location.hash === "#chat") {
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    }
     if (!next || history !== "idle") return;
     setHistory("loading");
     fetch("/api/chat")
@@ -46,6 +50,17 @@ export function ChatWidget() {
       })
       .catch(() => setHistory("failed"));
   }
+
+  // The header's "Chat" link and the hero button point at #chat.
+  const openFromHash = useEffectEvent(() => {
+    if (window.location.hash === "#chat") changeOpen(true);
+  });
+  useEffect(() => {
+    const onHashChange = () => openFromHash();
+    onHashChange();
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -129,6 +144,9 @@ export function ChatWidget() {
                 <Dialog.Description className="text-sm text-muted-foreground">
                   Quotes, departures and bookings. Demo only.
                 </Dialog.Description>
+                <a href="/c" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                  Your conversation, web and WhatsApp
+                </a>
               </div>
               <Dialog.Close render={<Button variant="ghost" size="icon" />} aria-label="Close chat">
                 <X aria-hidden />
