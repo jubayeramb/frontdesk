@@ -19,8 +19,14 @@ export async function query<T>(work: (q: (sql: string, params?: unknown[]) => Pr
   }
 }
 
-// A web visitor's conversation, optionally continued on a WhatsApp number.
-export async function conversation(opts: { owner?: "ai" | "human"; whatsapp?: string; rows: Row[] }): Promise<string> {
+// A web visitor's conversation, optionally continued on a WhatsApp number
+// where the customer last wrote `lastWroteHoursAgo`.
+export async function conversation(opts: {
+  owner?: "ai" | "human";
+  whatsapp?: string;
+  lastWroteHoursAgo?: number;
+  rows: Row[];
+}): Promise<string> {
   const contactId = randomUUID();
   const conversationId = randomUUID();
   await query(async (q) => {
@@ -29,7 +35,10 @@ export async function conversation(opts: { owner?: "ai" | "human"; whatsapp?: st
     if (opts.whatsapp) {
       await q("insert into channel_identities (contact_id, channel, external_id) values ($1, 'whatsapp', $2)", [contactId, opts.whatsapp]);
     }
-    await q("insert into conversations (id, contact_id, owner) values ($1, $2, $3)", [conversationId, contactId, opts.owner ?? "ai"]);
+    await q(
+      "insert into conversations (id, contact_id, owner, wa_last_inbound_at) values ($1, $2, $3, now() - make_interval(hours => $4))",
+      [conversationId, contactId, opts.owner ?? "ai", opts.lastWroteHoursAgo ?? null],
+    );
     for (const row of opts.rows) await addMessage(q, conversationId, row);
   });
   return conversationId;

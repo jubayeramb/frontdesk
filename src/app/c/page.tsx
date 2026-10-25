@@ -6,6 +6,7 @@ import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
 import { RichText } from "@/components/chat/rich-text";
+import { ReplyWindow } from "@/components/reply-window";
 import { SiteHeader } from "@/components/site-header";
 import { db } from "@/db";
 import { env } from "@/env";
@@ -90,7 +91,13 @@ function Status({ timeline }: { timeline: Timeline }) {
         {person ? "Person" : "Agent"}
       </span>
       <span>{person ? "A person will reply." : "The front desk agent is answering."}</span>
-      {timeline.whatsapp && <span className="text-muted-foreground">WhatsApp {timeline.whatsapp}</span>}
+      {timeline.whatsapp && (
+        // The number and its reply window wrap as one.
+        <span className="flex flex-wrap gap-x-3 gap-y-1">
+          <span className="text-muted-foreground">WhatsApp {timeline.whatsapp}</span>
+          <ReplyWindow lastInboundAt={timeline.waLastInboundAt?.getTime() ?? null} loadedAt={timeline.loadedAt.getTime()} />
+        </span>
+      )}
     </div>
   );
 }

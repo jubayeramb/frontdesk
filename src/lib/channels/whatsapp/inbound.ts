@@ -24,9 +24,25 @@ export const kapsoMessageSchema = z.object({
 
 export type KapsoMessage = z.infer<typeof kapsoMessageSchema>;
 
+// What a customer's WhatsApp message gets: a turn (`message`), nothing at all
+// (`silent`), or the fixed text-only reply (`unsupported`).
+export type InboundKind = "message" | "silent" | "unsupported";
+
+// Reactions and WhatsApp's own system notices are not something to answer.
+const SILENT_TYPES = new Set(["reaction", "system", "ephemeral", "request_welcome"]);
+
+export function classifyInbound(message: KapsoMessage): InboundKind {
+  if (message.interactive?.button_reply || message.interactive?.list_reply) return "message";
+  if (message.type === "text") return message.text?.body.trim() ? "message" : "silent";
+  if (SILENT_TYPES.has(message.type)) return "silent";
+  // Images, audio, video, documents, stickers, locations, contact cards, and
+  // anything WhatsApp itself marks unsupported.
+  return "unsupported";
+}
+
 // Turns a customer's WhatsApp message into what the agent reads. `lastChoices`
 // are the options of the latest choices reply in the conversation. Returns
-// null for messages the agent does not answer yet (images, reactions, ...).
+// null for anything `classifyInbound` does not call a message.
 export function mapInbound(message: KapsoMessage, lastChoices: ChoiceOption[] | null): Inbound | null {
   const tap = message.interactive?.button_reply ?? message.interactive?.list_reply;
   if (tap) {

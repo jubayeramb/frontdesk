@@ -2,18 +2,28 @@ import { randomUUID } from "node:crypto";
 
 import type { Db } from "@/db/client";
 import type { TurnResult } from "@/lib/agent/run-turn";
-import { appendMessage, markFailed, markSending, markSent } from "@/lib/conversations/store";
+import { appendMessage, getConversation, markBlocked, markFailed, markSending, markSent } from "@/lib/conversations/store";
 import type { ChannelAdapter, OutboundMessage } from "./types";
 
 // Sends a turn's stored replies through a channel, one message at a time.
 // Every send has a stored row first (pending, with our nonce) and ends with
 // the channel's id or the error. A reply that renders into several messages
-// gets one row per extra part, linked to the reply's row.
+// gets one row per extra part, linked to the reply's row. The channel's reply
+// policy is checked when the turn is ready, not when it started, so a slow or
+// retried turn past WhatsApp's window is kept as blocked instead.
 export async function deliverTurn(
   db: Db,
   adapter: ChannelAdapter,
-  input: { conversationId: string; to: string; turn: TurnResult },
-): Promise<{ sent: number; failed: number }> {
+  input: { conversationId: string; to: string; turn: TurnResult; now: Date },
+): Promise<{ sent: number; failed: number; blocked: number }> {
+  const conversation = await getConversation(db, input.conversationId);
+  const policy = conversation ? adapter.replyPolicy(conversation, input.now) : { canSendFreeForm: true };
+  if (!policy.canSendFreeForm) {
+    await markBlocked(db, input.turn.messageIds, policy.reason ?? "blocked by the channel");
+    if (input.turn.messageIds.length > 0) console.warn(`${adapter.channel} turn not sent: ${policy.reason}`);
+    return { sent: 0, failed: 0, blocked: input.turn.messageIds.length };
+  }
+
   let sent = 0;
   let failed = 0;
   let stopped: string | null = null;
@@ -44,7 +54,7 @@ export async function deliverTurn(
       break;
     }
   }
-  return { sent, failed };
+  return { sent, failed, blocked: 0 };
 }
 
 async function storePart(

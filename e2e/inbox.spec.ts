@@ -13,8 +13,9 @@ async function signIn(page: Page) {
 }
 
 // A WhatsApp conversation a person has taken over, named per project so the
-// desktop and phone runs do not share rows.
-async function humanConversation(name: string) {
+// desktop and phone runs do not share rows. The customer last wrote
+// `lastWroteHoursAgo`.
+async function humanConversation(name: string, lastWroteHoursAgo = 1) {
   const { pool } = createDb(E2E_ENV.DATABASE_URL, E2E_ENV.DATABASE_WS_PROXY);
   try {
     const contactId = randomUUID();
@@ -24,7 +25,11 @@ async function humanConversation(name: string) {
       contactId,
       `88017${Math.floor(Math.random() * 1e8)}`,
     ]);
-    await pool.query("insert into conversations (id, contact_id, owner, owner_changed_at) values ($1, $2, 'human', now())", [conversationId, contactId]);
+    await pool.query(
+      `insert into conversations (id, contact_id, owner, owner_changed_at, wa_last_inbound_at)
+       values ($1, $2, 'human', now(), now() - make_interval(hours => $3))`,
+      [conversationId, contactId, lastWroteHoursAgo],
+    );
     await pool.query(
       "insert into messages (conversation_id, channel, direction, sent_by, body) values ($1, 'whatsapp', 'inbound', 'customer', 'can I talk to a person')",
       [conversationId],
@@ -73,6 +78,17 @@ test("a takeover shows up without a reload, and the inbox frame stays put", asyn
 
   await expect(page.getByTestId("handed-over-row").filter({ hasText: name })).toBeVisible({ timeout: 8_000 });
   expect(inboxLoads).toBe(1);
+});
+
+test("each conversation shows the time left to reply on WhatsApp", async ({ page }, testInfo) => {
+  const open = `Open window ${testInfo.project.name}`;
+  const closed = `Closed window ${testInfo.project.name}`;
+  await humanConversation(open, 21);
+  await humanConversation(closed, 30);
+  await signIn(page);
+
+  await expect(page.getByTestId("handed-over-row").filter({ hasText: open }).getByTestId("reply-window")).toHaveText(/^Reply window: (3h|2h 59m) left$/);
+  await expect(page.getByTestId("handed-over-row").filter({ hasText: closed }).getByTestId("reply-window")).toHaveText("Window closed");
 });
 
 test("no public response carries the inbox address", async ({ request }) => {

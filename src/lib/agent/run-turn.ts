@@ -3,6 +3,7 @@ import { generateText, isStepCount, type ModelMessage } from "ai";
 import type { Db } from "@/db/client";
 import type { Channel, Message } from "@/db/schema";
 import { appendMessage, appendMessages, getConversation, loadWindow } from "@/lib/conversations/store";
+import { checkGuards, recordTurn, type Limits } from "@/lib/guards";
 import { firstMessage } from "./first-message";
 import { dropListedOptions, dropOptionIds } from "./listed-options";
 import { stripDateLists, asksForDeparture } from "./date-lists";
@@ -14,18 +15,23 @@ import { createTurnTools, offerDepartures } from "./tools";
 
 export const BUSY_REPLY = "We're busy right now. Try again in a minute.";
 const MAX_STEPS = 5;
+// The model reads at most this much of one customer message; the stored
+// message keeps all of it.
+export const MODEL_TEXT_LIMIT = 1_000;
 
 // A tap on a button or list row carries the option id; typed text does not.
 // `externalId` is the channel's id for the message, when it has one, and
 // `clientNonce` the sender's own, so a resubmission is stored once. `link` is
 // set when the message carried a link code: whether it continued a web
-// conversation or was expired or used.
+// conversation or was expired or used. `unsupported` names a message type the
+// agent cannot read, such as an image; it gets a fixed reply.
 export type Inbound = {
   text: string;
   choiceId?: string;
   externalId?: string;
   clientNonce?: string;
   link?: "continued" | "rejected";
+  unsupported?: string;
 };
 
 export type TurnResult = {
@@ -45,6 +51,8 @@ export async function runTurn(input: {
   models: NamedModel[];
   // Where a web visitor is sent to reach a person, digits only.
   whatsappNumber?: string;
+  // Turn limits; the defaults unless the caller passes the configured cap.
+  limits?: Limits;
   // Called once per answered turn; usage feeds limits and the write-up.
   onModelResult?: (info: { modelId: string; steps: number; inputTokens: number; outputTokens: number }) => void;
 }): Promise<TurnResult> {
@@ -58,13 +66,25 @@ export async function runTurn(input: {
     direction: "inbound",
     sentBy: "customer",
     body: inbound.text,
-    payload: inbound.choiceId ? { choiceId: inbound.choiceId } : inbound.link ? { link: inbound.link } : undefined,
+    payload: inbound.choiceId
+      ? { choiceId: inbound.choiceId }
+      : inbound.link
+        ? { link: inbound.link }
+        : inbound.unsupported
+          ? { unsupported: inbound.unsupported }
+          : undefined,
     externalId: inbound.externalId,
     clientNonce: inbound.clientNonce,
   });
-  // A person owns the conversation: the message is kept for them, and the
-  // agent stays quiet.
-  if (conversation.owner === "human") return { replies: [], messageIds: [] };
+  // The message is kept either way; a guard may answer it without the model,
+  // or not at all (a person owns the conversation).
+  const guard = await checkGuards(db, { conversation, unsupported: inbound.unsupported !== undefined, now, limits: input.limits });
+  if (guard.action === "silent") return { replies: [], messageIds: [] };
+  if (guard.action === "reply") {
+    const reply: AgentReply = { kind: "text", text: guard.text };
+    const [row] = await appendMessages(db, conversationId, [agentReply(conversationId, channel, reply)]);
+    return { replies: [reply], messageIds: [row!.id] };
+  }
 
   const history = await loadWindow(db, conversationId);
   const { tools, record } = createTurnTools({ db, conversationId, now, channel, whatsappNumber: input.whatsappNumber });
@@ -81,6 +101,17 @@ export async function runTurn(input: {
     }),
   );
 
+  // Counted for the limits whether or not a model answered.
+  const usage = outcome.ok ? outcome.value.totalUsage : undefined;
+  await recordTurn(db, {
+    contactId: conversation.contactId,
+    conversationId,
+    model: outcome.ok ? outcome.modelId : null,
+    inputTokens: usage?.inputTokens ?? 0,
+    outputTokens: usage?.outputTokens ?? 0,
+    at: now,
+  });
+
   let replies: AgentReply[];
   if (!outcome.ok) {
     console.error(`turn failed on every model: ${describeError(outcome.error)}`);
@@ -89,8 +120,8 @@ export async function runTurn(input: {
     input.onModelResult?.({
       modelId: outcome.modelId,
       steps: outcome.value.steps.length,
-      inputTokens: outcome.value.totalUsage.inputTokens ?? 0,
-      outputTokens: outcome.value.totalUsage.outputTokens ?? 0,
+      inputTokens: usage?.inputTokens ?? 0,
+      outputTokens: usage?.outputTokens ?? 0,
     });
     let text = inTaka(dropOptionIds(firstMessage(outcome.value.text.trim())));
     // A reply that asks for a departure but lists none this turn (dates copied
@@ -134,12 +165,7 @@ export async function runTurn(input: {
     db,
     conversationId,
     replies.map((reply) => ({
-      conversationId,
-      channel,
-      direction: "outbound" as const,
-      sentBy: "ai" as const,
-      body: reply.kind === "choices" ? reply.prompt : reply.text,
-      payload: reply,
+      ...agentReply(conversationId, channel, reply),
       ...(takenOver ? { deliveryStatus: "suppressed" as const } : {}),
     })),
   );
@@ -148,6 +174,17 @@ export async function runTurn(input: {
     return { replies: [], messageIds: [] };
   }
   return { replies, messageIds: stored.map((m) => m.id) };
+}
+
+function agentReply(conversationId: string, channel: Channel, reply: AgentReply) {
+  return {
+    conversationId,
+    channel,
+    direction: "outbound" as const,
+    sentBy: "ai" as const,
+    body: reply.kind === "choices" ? reply.prompt : reply.text,
+    payload: reply,
+  };
 }
 
 const LINK_MEANING = {
@@ -170,9 +207,10 @@ export function toModelMessages(history: Message[]): ModelMessage[] {
         continue;
       }
       const choiceId = message.payload?.choiceId;
+      const body = message.body.slice(0, MODEL_TEXT_LIMIT);
       out.push({
         role: "user",
-        content: typeof choiceId === "string" ? `${message.body} (picked option id: ${choiceId})` : message.body,
+        content: typeof choiceId === "string" ? `${body} (picked option id: ${choiceId})` : body,
       });
       continue;
     }

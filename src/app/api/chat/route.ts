@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { env } from "@/env";
 import { groqModels } from "@/lib/agent/model";
 import { getChat, postChat } from "@/lib/web-chat/handler";
-import { handleKapsoEvent } from "@/lib/webhooks/runtime";
+import { handleKapsoEvent, limits } from "@/lib/webhooks/runtime";
 
 // A turn runs inside the request; this bounds how long it may take.
 export const maxDuration = 60;
@@ -17,6 +17,7 @@ export function POST(request: Request) {
     secret: env.CHAT_COOKIE_SECRET,
     models,
     whatsappNumber: env.NEXT_PUBLIC_WHATSAPP_NUMBER,
+    limits,
     handleWebhookEvent: handleKapsoEvent,
     schedule: after,
   });

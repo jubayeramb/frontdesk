@@ -1,5 +1,6 @@
 import { GraphApiError, WhatsAppClient } from "@kapso/whatsapp-cloud-api";
 
+import { windowRemaining } from "@/lib/reply-window";
 import type { ChannelAdapter, OutboundMessage, SendResult } from "../types";
 import { LIMITS, render } from "./render";
 
@@ -38,8 +39,11 @@ export function createWhatsAppAdapter(config: {
   return {
     channel: "whatsapp",
     capabilities: () => ({ buttons: LIMITS.buttons, listRows: LIMITS.listRows, markdown: false }),
-    // add-guards-and-retention adds the 24-hour window.
-    replyPolicy: () => ({ canSendFreeForm: true }),
+    // Meta refuses free-form messages outside the window, so they never go out.
+    replyPolicy: (conversation, now) =>
+      windowRemaining(conversation.waLastInboundAt, now) > 0
+        ? { canSendFreeForm: true }
+        : { canSendFreeForm: false, reason: "reply window closed" },
     render,
     async send(to, message, { nonce }): Promise<SendResult> {
       try {

@@ -73,3 +73,57 @@ test("a new message shows up without a reload", async ({ page, context }) => {
 
   await expect(page.getByText("Staff reply from the inbox")).toBeVisible({ timeout: 10_000 });
 });
+
+test("a conversation on WhatsApp shows the time left in the reply window", async ({ page, context }) => {
+  const id = await conversation({
+    whatsapp: number("4821"),
+    lastWroteHoursAgo: 21,
+    rows: [{ channel: "whatsapp", sentBy: "customer", body: "Hi! My code is TR-7KQ2MX" }],
+  });
+  await visit(context, id);
+  await page.goto("/c");
+
+  await expect(page.getByTestId("reply-window")).toHaveText(/^Reply window: (3h|2h 59m) left$/);
+});
+
+test("a WhatsApp window that has passed shows as closed", async ({ page, context }) => {
+  const id = await conversation({
+    whatsapp: number("4821"),
+    lastWroteHoursAgo: 30,
+    rows: [{ channel: "whatsapp", sentBy: "customer", body: "Hi! My code is TR-7KQ2MX" }],
+  });
+  await visit(context, id);
+  await page.goto("/c");
+
+  await expect(page.getByTestId("reply-window")).toHaveText("Window closed");
+});
+
+test("a web-only conversation shows no reply window", async ({ page, context }) => {
+  const id = await conversation({ rows: [{ channel: "web", sentBy: "customer", body: "Hello" }] });
+  await visit(context, id);
+  await page.goto("/c");
+
+  await expect(page.getByTestId("timeline-status")).toBeVisible();
+  await expect(page.getByTestId("reply-window")).toHaveCount(0);
+});
+
+test("the page renders on the server without errors, with and without a reply window", async ({ page, context }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  let loads = 0;
+  page.on("load", () => loads++);
+
+  await page.goto("/c");
+  const id = await conversation({
+    whatsapp: number("4821"),
+    lastWroteHoursAgo: 2,
+    rows: [{ channel: "whatsapp", sentBy: "customer", body: "Hi! My code is TR-7KQ2MX" }],
+  });
+  await visit(context, id);
+  await page.goto("/c");
+  await expect(page.getByTestId("reply-window")).toBeVisible();
+  await page.waitForTimeout(1_000);
+
+  expect(errors).toEqual([]);
+  expect(loads).toBe(2);
+});

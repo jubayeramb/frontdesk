@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 
 import type { Db } from "@/db/client";
 import {
@@ -106,7 +106,7 @@ export type NewMessage = {
   payload?: Record<string, unknown>;
   clientNonce?: string;
   externalId?: string;
-  deliveryStatus?: "pending" | "sent" | "failed" | "suppressed";
+  deliveryStatus?: "pending" | "sent" | "failed" | "suppressed" | "blocked";
 };
 
 export async function appendMessage(db: Db, message: NewMessage): Promise<Message> {
@@ -207,6 +207,15 @@ export async function markFailed(
     .where("id" in target ? eq(messages.id, target.id) : eq(messages.externalId, target.externalId))
     .returning({ id: messages.id });
   return rows.length > 0;
+}
+
+// A reply the channel may not send, kept with the reason.
+export async function markBlocked(db: Db, messageIds: number[], reason: string): Promise<void> {
+  if (messageIds.length === 0) return;
+  await db
+    .update(messages)
+    .set({ deliveryStatus: "blocked", deliveryError: reason })
+    .where(inArray(messages.id, messageIds));
 }
 
 // Whether an agent send in this conversation is still waiting for the

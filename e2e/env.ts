@@ -17,4 +17,5 @@ export const E2E_ENV = {
   STAFF_PASSWORD: "e2e-staff-password",
   STAFF_SESSION_SECRET: "e2e-session-secret-that-is-at-least-32-chars",
   CHAT_COOKIE_SECRET: "e2e-chat-cookie-secret-at-least-32-chars",
+  CRON_SECRET: "e2e-cron-secret-16",
 };

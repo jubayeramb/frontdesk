@@ -62,11 +62,14 @@ export const ownerEnum = pgEnum("conversation_owner", ["ai", "human"]);
 export const directionEnum = pgEnum("message_direction", ["inbound", "outbound"]);
 export const senderEnum = pgEnum("message_sender", ["customer", "ai", "human", "system"]);
 // `suppressed`: a reply a person's takeover overtook, kept but never sent.
-export const deliveryEnum = pgEnum("message_delivery", ["pending", "sent", "failed", "suppressed"]);
+// `blocked`: a reply the channel's policy refused, such as WhatsApp's 24-hour window.
+export const deliveryEnum = pgEnum("message_delivery", ["pending", "sent", "failed", "suppressed", "blocked"]);
 
 export const contacts = pgTable("contacts", {
   id: uuid("id").primaryKey().defaultRandom(),
   displayName: text("display_name"),
+  // When the contact was last told they hit a limit, so they are told once.
+  limitNotifiedAt: timestamp("limit_notified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -161,6 +164,29 @@ export const webhookStatusEnum = pgEnum("webhook_event_status", [
   "done",
   "failed",
 ]);
+
+// One row per turn that called the model, for the usage limits and token counts.
+export const turns = pgTable(
+  "turns",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    contactId: uuid("contact_id")
+      .notNull()
+      .references(() => contacts.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => conversations.id, { onDelete: "cascade" }),
+    // The model that answered; null when every model failed.
+    model: text("model"),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("turns_contact_id_idx").on(t.contactId, t.createdAt),
+    index("turns_created_at_idx").on(t.createdAt),
+  ],
+);
 
 // Every webhook event, stored once and processed in arrival order per customer.
 export const webhookEvents = pgTable(

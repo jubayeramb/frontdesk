@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { fixtureMessage } from "../../../../test/support/kapso-fixtures";
-import { kapsoMessageSchema, mapInbound } from "./inbound";
+import { classifyInbound, kapsoMessageSchema, mapInbound } from "./inbound";
 
 const message = (name: string) => kapsoMessageSchema.parse(fixtureMessage(name));
 
@@ -42,5 +42,36 @@ describe("mapInbound", () => {
   it("skips images and reactions", () => {
     expect(mapInbound(message("message-received-image"), null)).toBeNull();
     expect(mapInbound(message("message-received-reaction"), null)).toBeNull();
+  });
+});
+
+describe("classifyInbound", () => {
+  // Sticker and location were not captured; they differ from the image only in type and content.
+  const like = (type: string, extra: Record<string, unknown>) =>
+    kapsoMessageSchema.parse({ ...fixtureMessage("message-received-image"), image: undefined, type, ...extra });
+
+  it("answers text and taps", () => {
+    expect(classifyInbound(message("message-received-text"))).toBe("message");
+    expect(classifyInbound(message("message-received-button-reply"))).toBe("message");
+    expect(classifyInbound(message("message-received-list-reply"))).toBe("message");
+  });
+
+  it("keeps long text a message, since only the model's copy is cut", () => {
+    const long = { ...message("message-received-text"), text: { body: "a".repeat(5_000) } };
+    expect(classifyInbound(long)).toBe("message");
+  });
+
+  it("stays silent on reactions and empty text", () => {
+    expect(classifyInbound(message("message-received-reaction"))).toBe("silent");
+    expect(classifyInbound({ ...message("message-received-text"), text: { body: "  " } })).toBe("silent");
+  });
+
+  it("gives media, stickers, locations and contact cards the text-only reply", () => {
+    expect(classifyInbound(message("message-received-image"))).toBe("unsupported");
+    expect(classifyInbound(like("sticker", { sticker: { id: "1", mime_type: "image/webp", animated: false } }))).toBe("unsupported");
+    expect(classifyInbound(like("location", { location: { latitude: 23.8, longitude: 90.4 } }))).toBe("unsupported");
+    for (const type of ["audio", "video", "document", "contacts", "unsupported"]) {
+      expect(classifyInbound(like(type, {}))).toBe("unsupported");
+    }
   });
 });

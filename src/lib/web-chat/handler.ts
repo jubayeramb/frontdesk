@@ -6,6 +6,7 @@ import type { Db } from "@/db/client";
 import type { Message } from "@/db/schema";
 import type { NamedModel } from "@/lib/agent/model";
 import type { AgentReply } from "@/lib/agent/replies";
+import type { Limits } from "@/lib/guards";
 import { runTurn } from "@/lib/agent/run-turn";
 import { deliverTurn } from "@/lib/channels/deliver";
 import { webAdapter } from "@/lib/channels/web";
@@ -29,6 +30,7 @@ export type ChatDeps = {
   models: NamedModel[];
   // Where a visitor who asks for a person is sent, digits only.
   whatsappNumber?: string;
+  limits?: Limits;
   // Webhook events left behind by a dead worker are swept after each chat
   // request too, so WhatsApp does not depend on its own traffic to recover.
   handleWebhookEvent: EventHandler;
@@ -132,8 +134,9 @@ async function answerOnce(
       now: now(),
       models: deps.models,
       whatsappNumber: deps.whatsappNumber,
+      limits: deps.limits,
     });
-    await deliverTurn(db, webAdapter, { conversationId, to: conversationId, turn });
+    await deliverTurn(db, webAdapter, { conversationId, to: conversationId, turn, now: now() });
     // The message is stored for the person who owns the conversation, and the
     // visitor is pointed to WhatsApp instead of waiting on silence.
     if (turn.replies.length === 0 && (await personOwns(db, conversationId))) return [personNotice(deps.whatsappNumber)];

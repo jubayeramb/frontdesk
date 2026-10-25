@@ -10,6 +10,7 @@ import { fakeKapso } from "../../../test/support/fake-kapso";
 import { FIXTURE_SECRET, fixtureRequest, kapsoFixture } from "../../../test/support/kapso-fixtures";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
 import { createLinkCode } from "@/lib/linking";
+import { CONTACT_LIMIT_REPLY, UNSUPPORTED_REPLY } from "@/lib/guards";
 import { transition } from "@/lib/ownership";
 import { findOrCreateConversation, updateState } from "@/lib/conversations/store";
 import { drain } from "./events";
@@ -41,8 +42,17 @@ function setup(script: ScriptStep[], opts: { echoWaitMs?: number } = {}) {
   return { kapso, model, handle, post };
 }
 
+// A customer message sent just now, so WhatsApp's reply window is open.
+// The fixtures were captured on 2026-10-24.
+const received = (name: string, edit?: (body: Record<string, unknown>) => void) =>
+  fixtureRequest(name, (b) => {
+    const events = (b.data as { message: { timestamp: string } }[] | undefined) ?? [b as { message: { timestamp: string } }];
+    for (const event of events) event.message.timestamp = String(Math.floor(Date.now() / 1000));
+    edit?.(b);
+  });
+
 const text = (id: string, body: string) =>
-  fixtureRequest("message-received-text", (b) => {
+  received("message-received-text", (b) => {
     const message = b.message as { id: string; text: { body: string } };
     message.id = id;
     message.text.body = body;
@@ -55,7 +65,7 @@ describe("whatsapp.message.received", () => {
   it("answers a customer message and records both sides", async () => {
     const { kapso, post } = setup([{ text: "Hi! Which tour are you thinking of?" }]);
 
-    expect((await post(fixtureRequest("message-received-text"))).status).toBe(200);
+    expect((await post(received("message-received-text"))).status).toBe(200);
 
     expect(kapso.sends).toEqual([expect.objectContaining({ to: CUSTOMER, type: "text", text: expect.objectContaining({ body: "Hi! Which tour are you thinking of?" }) })]);
     const [inbound, outbound] = await stored();
@@ -64,7 +74,9 @@ describe("whatsapp.message.received", () => {
 
     const [conversation] = await db.select().from(conversations);
     expect(conversation).toMatchObject({ kapsoConversationId: "587da297-2527-4b23-aff8-fe5735205deb" });
-    expect(conversation!.waLastInboundAt).toEqual(new Date(1792819372 * 1000));
+    // The window opens at the message's own timestamp, which has whole seconds.
+    expect(conversation!.waLastInboundAt!.getTime() % 1000).toBe(0);
+    expect(Date.now() - conversation!.waLastInboundAt!.getTime()).toBeLessThan(5_000);
   });
 
   it("sends departures as a list and reads a tapped row back as that departure", async () => {
@@ -82,7 +94,7 @@ describe("whatsapp.message.received", () => {
     const picked = rows[1]!;
 
     await post(
-      fixtureRequest("message-received-list-reply", (b) => {
+      received("message-received-list-reply", (b) => {
         const message = b.message as { id: string; interactive: { list_reply: { id: string; title: string } } };
         message.id = "wamid.tap1";
         message.interactive.list_reply = { id: picked.id, title: picked.title };
@@ -96,15 +108,15 @@ describe("whatsapp.message.received", () => {
 
   it("replies once when Kapso delivers the same message twice", async () => {
     const { kapso, post } = setup([{ text: "Hello there." }]);
-    await post(fixtureRequest("message-received-text"));
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
+    await post(received("message-received-text"));
     expect(kapso.sends).toHaveLength(1);
     expect(kapso.receipts).toHaveLength(1);
   });
 
   it("does not answer again when an event is retried after its turn ran", async () => {
     const { kapso, handle, post } = setup([{ text: "Hello there." }]);
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
     await db.update(webhookEvents).set({ status: "pending" });
 
     await drain(db, CUSTOMER, handle);
@@ -115,7 +127,7 @@ describe("whatsapp.message.received", () => {
   it("answers quick messages one at a time, each turn seeing the one before", async () => {
     const { kapso, model, post } = setup([{ text: "Reply one." }, { text: "Reply two." }, { text: "Reply three." }]);
 
-    await post(fixtureRequest("message-received-batch"));
+    await post(received("message-received-batch"));
 
     expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual(["Reply one.", "Reply two.", "Reply three."]);
     const second = JSON.stringify(model.doGenerateCalls[1]!.prompt);
@@ -137,7 +149,7 @@ describe("whatsapp.message.received", () => {
     const { kapso, post } = setup([{ text: "Hello there." }]);
     kapso.failReceipts(500, { error: { message: "Service unavailable", type: "OAuthException", code: 2 } });
 
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
 
     expect(kapso.sends).toHaveLength(1);
     expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
@@ -146,7 +158,7 @@ describe("whatsapp.message.received", () => {
 
   it("does not show the typing indicator again when a retried event skips its turn", async () => {
     const { kapso, handle, post } = setup([{ text: "Hello there." }]);
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
     await db.update(webhookEvents).set({ status: "pending" });
     await drain(db, CUSTOMER, handle);
     expect(kapso.receipts).toHaveLength(1);
@@ -170,12 +182,68 @@ describe("whatsapp.message.received", () => {
     expect((await stored()).find((m) => m.externalId === "wamid.during")).toMatchObject({ sentBy: "customer", body: "thanks, also can you do Friday?" });
   });
 
-  it("stores an image without running a turn", async () => {
+  it("answers an image with the text-only reply and no model call", async () => {
     const { kapso, model, post } = setup([{ text: "unused" }]);
-    await post(fixtureRequest("message-received-image"));
+    await post(received("message-received-image"));
+
     expect(model.doGenerateCalls).toHaveLength(0);
+    expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual([UNSUPPORTED_REPLY]);
+    expect(kapso.receipts.map((r) => "typing_indicator" in r)).toEqual([false]);
+    expect((await stored()).map((m) => [m.sentBy, m.body, m.deliveryStatus])).toEqual([
+      ["customer", "[image]", null],
+      ["ai", UNSUPPORTED_REPLY, "sent"],
+    ]);
+    expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
+  });
+
+  it("keeps an image for the person who owns the conversation, with no reply", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { kapso, post } = setup([{ text: "Hello there." }]);
+    await post(text("wamid.first", "hi"));
+    const [conversation] = await db.select().from(conversations);
+    await transition(db, { conversationId: conversation!.id, event: "customer_requested" });
+
+    await post(received("message-received-image"));
+
+    expect(kapso.sends).toHaveLength(1);
+    expect((await stored()).at(-1)).toMatchObject({ sentBy: "customer", body: "[image]" });
+  });
+
+  it("calls the model 20 times for 25 quick messages and sends one limit reply", async () => {
+    const { kapso, model, post } = setup([{ text: "Noted." }]);
+    for (let i = 1; i <= 25; i++) await post(text(`wamid.burst${i}`, `message ${i}`));
+
+    expect(model.doGenerateCalls).toHaveLength(20);
+    const bodies = kapso.sends.map((s) => (s.text as { body: string }).body);
+    expect(bodies.filter((b) => b === CONTACT_LIMIT_REPLY)).toHaveLength(1);
+    expect(bodies).toHaveLength(21);
+    // Every message is kept, answered or not.
+    expect((await stored()).filter((m) => m.sentBy === "customer")).toHaveLength(25);
+  });
+
+  it("keeps a reply ready after the 24-hour window as blocked instead of sending it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { kapso, post } = setup([{ text: "Hi! Which tour are you thinking of?" }]);
+    // Delivered late: the customer wrote on 2026-10-24, more than a day ago.
+    await post(fixtureRequest("message-received-text"));
+
     expect(kapso.sends).toHaveLength(0);
-    expect(kapso.receipts).toHaveLength(0);
+    expect((await stored()).at(-1)).toMatchObject({
+      sentBy: "ai",
+      body: "Hi! Which tour are you thinking of?",
+      deliveryStatus: "blocked",
+      deliveryError: "reply window closed",
+    });
+    expect(warn).toHaveBeenCalledWith("whatsapp turn not sent: reply window closed");
+  });
+
+  it("sends nothing for a reaction and runs no turn", async () => {
+    const { kapso, model, post } = setup([{ text: "unused" }]);
+    await post(received("message-received-reaction"));
+
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(kapso.log).toHaveLength(0);
+    expect(await stored()).toHaveLength(0);
     expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
   });
 });
@@ -186,7 +254,7 @@ describe("whatsapp.message.sent", () => {
   it("takes a reply from the inbox as a person taking over, and the agent stays quiet", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     const { kapso, model, post } = setup([{ text: "Hi! Which tour are you thinking of?" }]);
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
 
     await post(fixtureRequest("message-sent-inbox-reply", undefined, { event: "whatsapp.message.sent" }));
 
@@ -204,7 +272,7 @@ describe("whatsapp.message.sent", () => {
 
   it("recognizes our own send whose echo arrives before its id is stored", async () => {
     const { post } = setup([{ text: "unused" }], { echoWaitMs: 300 });
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
     const [conversation] = await db.select().from(conversations);
     // An agent reply mid-send: stored, marked pending, no WhatsApp id yet.
     const [ours] = await db
@@ -224,7 +292,7 @@ describe("whatsapp.message.sent", () => {
   it("takes an unknown message as a person's after three checks, even with a send in flight", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     const { post } = setup([{ text: "unused" }]);
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
     const [conversation] = await db.select().from(conversations);
     await db.insert(messages).values({ conversationId: conversation!.id, channel: "whatsapp", direction: "outbound", sentBy: "ai", body: "stuck", deliveryStatus: "pending" });
 
@@ -240,7 +308,7 @@ describe("whatsapp.conversation.ended", () => {
   it("gives a person-owned conversation back to the agent, which answers the next message", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     const { kapso, post } = setup([{ text: "Hi again." }, { text: "Your booking is on Fri 30 Oct." }]);
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
     const [conversation] = await db.select().from(conversations);
     await transition(db, { conversationId: conversation!.id, event: "human_replied" });
 
@@ -255,7 +323,7 @@ describe("whatsapp.conversation.ended", () => {
 describe("whatsapp.message.failed", () => {
   it("marks the message we sent as failed with the reported error", async () => {
     const { post } = setup([{ text: "Hello there." }]);
-    await post(fixtureRequest("message-received-text"));
+    await post(received("message-received-text"));
 
     // Shape from Kapso's event reference; no failure could be captured live.
     await post(
