@@ -6,7 +6,7 @@ import type { NamedModel } from "@/lib/agent/model";
 import { runTurn, type Inbound } from "@/lib/agent/run-turn";
 import { deliverTurn } from "@/lib/channels/deliver";
 import type { ChannelAdapter } from "@/lib/channels/types";
-import { kapsoMessageSchema, mapInbound } from "@/lib/channels/whatsapp/inbound";
+import { classifyInbound, kapsoMessageSchema, mapInbound } from "@/lib/channels/whatsapp/inbound";
 import {
   appendMessage,
   findByExternalId,
@@ -17,6 +17,7 @@ import {
   markFailed,
   noteWhatsAppInbound,
 } from "@/lib/conversations/store";
+import type { Limits } from "@/lib/guards";
 import { findCode, linkWhatsApp } from "@/lib/linking";
 import { transition } from "@/lib/ownership";
 import type { EventHandler } from "./events";
@@ -61,15 +62,18 @@ const failedSchema = z.object({
 // Shows WhatsApp's typing indicator for a message the agent will answer. Runs
 // as soon as the webhook is stored, before the claim and the conversation
 // lookups, which take seconds from far away; the turn itself comes later.
-// Images and other messages the agent skips get no indicator.
+// Reactions get no receipt, and images get one without the indicator, since
+// their reply is fixed.
 export function createKapsoAcknowledger(deps: { db: Db; adapter: ChannelAdapter }) {
   return async (event: KapsoEvent): Promise<void> => {
     if (event.type !== "whatsapp.message.received" || !deps.adapter.markRead) return;
     const parsed = receivedSchema.safeParse(event.payload);
-    if (!parsed.success || !mapInbound(parsed.data.message, null)) return;
+    if (!parsed.success) return;
+    const kind = classifyInbound(parsed.data.message);
+    if (kind === "silent") return;
     // The message is read either way; only the agent says it is typing.
     const conversation = await findConversation(deps.db, { channel: "whatsapp", externalId: event.partitionKey });
-    await deps.adapter.markRead(parsed.data.message.id, { typing: conversation?.owner !== "human" });
+    await deps.adapter.markRead(parsed.data.message.id, { typing: kind === "message" && conversation?.owner !== "human" });
   };
 }
 
@@ -79,6 +83,7 @@ export function createKapsoHandler(deps: {
   db: Db;
   adapter: ChannelAdapter;
   models: NamedModel[];
+  limits?: Limits;
   now?: () => Date;
   // How long an unknown echo waits before it is checked again.
   echoWaitMs?: number;
@@ -104,8 +109,14 @@ export function createKapsoHandler(deps: {
     const sentAt = message.timestamp ? new Date(Number(message.timestamp) * 1000) : now();
     await noteWhatsAppInbound(deps.db, conversation.id, { kapsoConversationId: kapso?.id, at: sentAt });
 
-    const inbound = mapInbound(message, await lastChoices(deps.db, conversation.id));
-    // Images, reactions and the like stay in the event log; the agent skips them for now.
+    // Reactions stay in the event log only. An image is stored by its type and
+    // gets the fixed text-only reply.
+    const kind = classifyInbound(message);
+    if (kind === "silent") return;
+    const inbound =
+      kind === "unsupported"
+        ? { text: `[${message.type}]`, unsupported: message.type }
+        : mapInbound(message, await lastChoices(deps.db, conversation.id));
     if (!inbound) return;
 
     const turn = await runTurn({
@@ -115,8 +126,9 @@ export function createKapsoHandler(deps: {
       inbound: { ...inbound, externalId: message.id, link },
       now: now(),
       models: deps.models,
+      limits: deps.limits,
     });
-    await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to: customer, turn });
+    await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to: customer, turn, now: now() });
   }
 
   // Kapso reports every outbound message, ours and the inbox's alike, with no

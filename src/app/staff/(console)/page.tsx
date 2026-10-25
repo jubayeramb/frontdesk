@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { AutoRefresh } from "@/components/auto-refresh";
+import { ReplyWindow } from "@/components/reply-window";
 import { db } from "@/db";
 import { env } from "@/env";
 import { requireStaff } from "@/lib/staff/auth";
@@ -86,6 +87,9 @@ function HandedOverRow({ conversation: c }: { conversation: HandedOver }) {
         </time>
       </div>
       <p className="text-sm first-letter:uppercase">{c.because}</p>
+      {c.whatsapp && (
+        <ReplyWindow lastInboundAt={c.whatsapp.lastInboundAt?.getTime() ?? null} loadedAt={c.whatsapp.loadedAt.getTime()} className="text-xs" />
+      )}
       {c.preview && (
         <p className="line-clamp-2 text-sm break-words text-muted-foreground">
           {c.lastFrom === "customer" ? "" : c.lastFrom === "human" ? "You: " : "Agent: "}

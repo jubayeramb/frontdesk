@@ -22,6 +22,12 @@ describe("parseEnv", () => {
     expect(env.DATABASE_WS_PROXY).toBeUndefined();
   });
 
+  it("defaults the global turn cap to 250 and reads a set one as a number", () => {
+    expect(parseEnv(valid).GLOBAL_DAILY_TURN_CAP).toBe(250);
+    expect(parseEnv({ ...valid, GLOBAL_DAILY_TURN_CAP: "100" }).GLOBAL_DAILY_TURN_CAP).toBe(100);
+    expect(() => parseEnv({ ...valid, GLOBAL_DAILY_TURN_CAP: "0" })).toThrow(/GLOBAL_DAILY_TURN_CAP/);
+  });
+
   it("names every missing or invalid variable", () => {
     expect(() => parseEnv({ ...valid, DATABASE_URL: "not a url" })).toThrow(/DATABASE_URL/);
     expect(() => parseEnv({})).toThrow(/DATABASE_URL[\s\S]*STAFF_PASSWORD[\s\S]*STAFF_SESSION_SECRET/);

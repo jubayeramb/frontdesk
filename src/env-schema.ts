@@ -26,6 +26,9 @@ export const serverSchema = z.object({
   STAFF_SESSION_SECRET: z.string().min(32, "Use at least 32 characters."),
   // Signs the web chat cookie that ties a visitor to their conversation.
   CHAT_COOKIE_SECRET: z.string().min(32, "Use at least 32 characters."),
+  // Agent turns per UTC day for everyone together. About 3 model requests a
+  // turn keeps 250 under Groq's 1,000 requests a day per model.
+  GLOBAL_DAILY_TURN_CAP: z.coerce.number().int().positive().default(250),
 });
 
 export type Env = z.infer<typeof serverSchema>;

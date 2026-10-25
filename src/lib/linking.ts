@@ -3,7 +3,7 @@ import { randomInt } from "node:crypto";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 
 import type { Db } from "@/db/client";
-import { channelIdentities, contacts, conversations, linkCodes, messages } from "@/db/schema";
+import { channelIdentities, contacts, conversations, linkCodes, messages, turns } from "@/db/schema";
 
 // Crockford base32: digits and capitals without I, L, O and U.
 export const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -108,6 +108,8 @@ export async function linkWhatsApp(
           .set({ closedAt: input.now, updatedAt: sql`now()` })
           .where(and(eq(conversations.contactId, existing.contactId), isNull(conversations.closedAt)));
         await tx.update(channelIdentities).set({ contactId: web.contactId }).where(eq(channelIdentities.id, existing.id));
+        // The number's usage comes along, so linking never resets its limits.
+        await tx.update(turns).set({ contactId: web.contactId }).where(eq(turns.contactId, existing.contactId));
       }
     } else {
       const [created] = await tx

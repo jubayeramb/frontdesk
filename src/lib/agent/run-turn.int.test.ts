@@ -3,7 +3,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { linkCodes, type Channel } from "@/db/schema";
+import { linkCodes, turns, type Channel } from "@/db/schema";
 import { seed } from "@/db/seed-data";
 import { getConversation, loadWindow } from "@/lib/conversations/store";
 import { findCode } from "@/lib/linking";
@@ -385,6 +385,8 @@ describe("model failures", () => {
       ],
     });
     expect(replies).toEqual([{ kind: "text", text: BUSY_REPLY }]);
+    // The failed calls still count toward the limits.
+    expect(await db.select().from(turns)).toEqual([expect.objectContaining({ model: null, inputTokens: 0, outputTokens: 0 })]);
     expect(error).toHaveBeenCalledWith("turn failed on every model: AI_APICallError 429");
     expect(JSON.stringify(error.mock.calls)).not.toContain("Sundarbans");
   });

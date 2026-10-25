@@ -17,6 +17,10 @@ export type Timeline = {
   owner: Owner;
   // "•••• 4821" once the conversation continued on WhatsApp.
   whatsapp: string | null;
+  // When the customer last wrote on WhatsApp, which opens the reply window.
+  waLastInboundAt: Date | null;
+  // When this was read, so a countdown starts from the same moment.
+  loadedAt: Date;
   entries: TimelineEntry[];
 };
 
@@ -29,6 +33,8 @@ export async function loadTimeline(db: Db, conversationId: string): Promise<Time
   return {
     owner: conversation.owner,
     whatsapp: await maskedWhatsApp(db, conversation.contactId),
+    waLastInboundAt: conversation.waLastInboundAt,
+    loadedAt: new Date(),
     entries: messages.flatMap(toEntry),
   };
 }
@@ -45,7 +51,7 @@ export async function maskedWhatsApp(db: Db, contactId: string): Promise<string 
 // Replies that never went out, and the extra parts of a reply split for a
 // channel, are not part of what the customer saw.
 export function shownToCustomer(message: Message): boolean {
-  return !message.payload?.continues && message.deliveryStatus !== "suppressed";
+  return !message.payload?.continues && message.deliveryStatus !== "suppressed" && message.deliveryStatus !== "blocked";
 }
 
 function toEntry(message: Message): TimelineEntry[] {
