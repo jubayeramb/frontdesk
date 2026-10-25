@@ -93,7 +93,7 @@ export default function Home() {
         </div>
       </footer>
 
-      <ChatWidget />
+      <ChatWidget whatsappNumber={env.NEXT_PUBLIC_WHATSAPP_NUMBER} />
     </div>
   );
 }
