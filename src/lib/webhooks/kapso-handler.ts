@@ -138,6 +138,9 @@ export function createKapsoHandler(deps: {
       return { deferMs: deps.echoWaitMs ?? 5_000 };
     }
 
+    // The takeover goes first: its note then reads before the reply, and a
+    // retry after a failed insert still finds no stored id and finishes.
+    await transition(deps.db, { conversationId: conversation.id, event: "human_replied" });
     await appendMessage(deps.db, {
       conversationId: conversation.id,
       channel: "whatsapp",
@@ -147,7 +150,6 @@ export function createKapsoHandler(deps: {
       externalId: message.id,
       deliveryStatus: "sent",
     });
-    await transition(deps.db, { conversationId: conversation.id, event: "human_replied" });
   }
 
   // Kapso ends a conversation from the inbox or after 24 hours of quiet; either

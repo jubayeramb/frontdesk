@@ -194,6 +194,8 @@ describe("whatsapp.message.sent", () => {
     expect(reply).toMatchObject({ sentBy: "human", direction: "outbound", body: "Hi, this is a person replying from Kapso dashboard." });
     const [conversation] = await db.select().from(conversations);
     expect(conversation!.owner).toBe("human");
+    // The takeover note sits before the reply that caused it, so timelines read in order.
+    expect((await stored()).slice(-2).map((m) => m.sentBy)).toEqual(["system", "human"]);
 
     await post(text("wamid.after", "thanks!"));
     expect(model.doGenerateCalls).toHaveLength(1);
