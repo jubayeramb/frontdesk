@@ -1,10 +1,12 @@
 import { APICallError } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
+import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { Channel } from "@/db/schema";
+import { linkCodes, type Channel } from "@/db/schema";
 import { seed } from "@/db/seed-data";
 import { getConversation, loadWindow } from "@/lib/conversations/store";
+import { findCode } from "@/lib/linking";
 import { setupTestDb } from "../../../test/int/db";
 import { newConversation } from "../../../test/int/fixtures";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
@@ -33,6 +35,18 @@ async function turn(script: ScriptStep[], inbound: Inbound, opts: { channel?: Ch
 const lastPrompt = (model: MockLanguageModelV4) => JSON.stringify(model.doGenerateCalls.at(-1)?.prompt);
 
 describe("prices", () => {
+  it("finds the tour from the customer's words and shows prices in taka", async () => {
+    await seed(db);
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "getQuote", input: { tourSlug: "Sylhet tour", travelers: 2 } }] },
+        { text: "The Sylhet tea gardens tour is ₹17,000 in total (₹8,500 per person)." },
+      ],
+      { text: "How much is the Sylhet tour for 2?" },
+    );
+    expect(replies).toEqual([{ kind: "text", text: "The Sylhet tea gardens tour is ৳17,000 in total (৳8,500 per person)." }]);
+  });
+
   it("quotes through the tool and the reply holds the tool's total", async () => {
     await seed(db);
     const { replies, model, conversationId } = await turn(
@@ -449,8 +463,48 @@ describe("handoff", () => {
       whatsappNumber: "15550000000",
     });
     expect(replies).toEqual([
-      { kind: "link", text: "A person from our team replies on WhatsApp.", url: "https://wa.me/15550000000", label: "Continue on WhatsApp" },
+      {
+        kind: "link",
+        text: "A person from our team replies on WhatsApp. This link brings your chat with you.",
+        url: expect.stringMatching(/^https:\/\/wa\.me\/15550000000\?text=Hi!%20My%20code%20is%20TR-/),
+        label: "Continue on WhatsApp",
+      },
     ]);
+    await expectFreshCode(replies[0]!, conversationId);
     expect((await getConversation(db, conversationId))?.owner).toBe("ai");
   });
+
+  it("gives a web visitor a WhatsApp link with a fresh code when they ask to move", async () => {
+    const conversationId = (await newConversation(db, "web")).id;
+    const model = scriptedModel([{ tools: [{ name: "continueOnWhatsApp", input: {} }] }, { text: "Here you go!" }]);
+    const { replies } = await runTurn({
+      db,
+      conversationId,
+      channel: "web",
+      inbound: { text: "can we continue on whatsapp?" },
+      now,
+      models: only(model),
+      whatsappNumber: "15550000000",
+    });
+    expect(replies).toEqual([
+      expect.objectContaining({ kind: "link", label: "Continue on WhatsApp", url: expect.stringContaining("https://wa.me/15550000000?text=") }),
+    ]);
+    await expectFreshCode(replies[0]!, conversationId);
+  });
+
+  it("does not offer continueOnWhatsApp on WhatsApp", async () => {
+    const { model } = await turn([{ text: "Hello!" }], { text: "hi" }, { channel: "whatsapp" });
+    const offered = (model.doGenerateCalls[0]!.tools ?? []).map((t) => t.name);
+    expect(offered).toContain("requestHuman");
+    expect(offered).not.toContain("continueOnWhatsApp");
+  });
 });
+
+// The link's prefilled text holds an unused code for this conversation that
+// lasts 15 minutes from now.
+async function expectFreshCode(reply: { kind: string; url?: string }, conversationId: string) {
+  const code = findCode(decodeURIComponent(new URL(reply.url!).searchParams.get("text") ?? ""));
+  expect(code).not.toBeNull();
+  const [row] = await db.select().from(linkCodes).where(eq(linkCodes.code, code!));
+  expect(row).toMatchObject({ conversationId, usedAt: null, expiresAt: new Date(now.getTime() + 15 * 60_000) });
+}

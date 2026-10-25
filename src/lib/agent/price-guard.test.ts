@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ensureQuoteTotal, findAmounts, guardPrices } from "./price-guard";
+import { ensureQuoteTotal, findAmounts, guardPrices, inTaka } from "./price-guard";
 
 const quote = {
   tour: { slug: "sundarbans", name: "Sundarbans 3-day boat tour" },
@@ -17,9 +17,25 @@ describe("findAmounts", () => {
     ["BDT 58,000 or 58,000 taka", [58_000, 58_000]],
     ["about $480", [480]],
     ["₨14,500 each, Rs. 29,000 total", [14_500, 29_000]],
+    ["₹8,500 per person", [8_500]],
     ["4 travelers on 5 Nov, 3 days", []],
   ])("%s", (text, expected) => {
     expect(findAmounts(text)).toEqual(expected);
+  });
+});
+
+describe("inTaka", () => {
+  it.each([
+    ["(₹8,500 per person)", "(৳8,500 per person)"],
+    ["₨ 17,000 total", "৳17,000 total"],
+    ["Rs. 17000 in all", "৳17000 in all"],
+    ["Rs 8,500 each", "৳8,500 each"],
+  ])("writes %s as %s", (text, expected) => {
+    expect(inTaka(text)).toBe(expected);
+  });
+
+  it("leaves text without a rupee amount alone", () => {
+    expect(inTaka("Rs are fine, ৳8,500 and Mrs Khan")).toBe("Rs are fine, ৳8,500 and Mrs Khan");
   });
 });
 

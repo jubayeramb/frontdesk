@@ -9,7 +9,9 @@ import { setupTestDb } from "../../../test/int/db";
 import { fakeKapso } from "../../../test/support/fake-kapso";
 import { FIXTURE_SECRET, fixtureRequest, kapsoFixture } from "../../../test/support/kapso-fixtures";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
+import { createLinkCode } from "@/lib/linking";
 import { transition } from "@/lib/ownership";
+import { findOrCreateConversation, updateState } from "@/lib/conversations/store";
 import { drain } from "./events";
 import { createKapsoAcknowledger, createKapsoHandler } from "./kapso-handler";
 import { receiveKapsoWebhook } from "./receive";
@@ -192,6 +194,8 @@ describe("whatsapp.message.sent", () => {
     expect(reply).toMatchObject({ sentBy: "human", direction: "outbound", body: "Hi, this is a person replying from Kapso dashboard." });
     const [conversation] = await db.select().from(conversations);
     expect(conversation!.owner).toBe("human");
+    // The takeover note sits before the reply that caused it, so timelines read in order.
+    expect((await stored()).slice(-2).map((m) => m.sentBy)).toEqual(["system", "human"]);
 
     await post(text("wamid.after", "thanks!"));
     expect(model.doGenerateCalls).toHaveLength(1);
@@ -277,5 +281,46 @@ describe("whatsapp.message.failed", () => {
 
     const [sent] = await db.select().from(messages).where(eq(messages.externalId, "wamid.fake-1"));
     expect(sent).toMatchObject({ deliveryStatus: "failed", deliveryError: "131047: Re-engagement message" });
+  });
+});
+
+describe("link codes", () => {
+  const quote = {
+    tour: { slug: "sylhet-tea-gardens", name: "Sylhet tea gardens 2-day" },
+    travelers: 2,
+    pricePerPersonBdt: 8500,
+    totalBdt: 17000,
+  } as never;
+
+  it("continues the web conversation on WhatsApp, and the turn sees the web quote but not the code", async () => {
+    const web = await findOrCreateConversation(db, { channel: "web", externalId: "visitor-link" });
+    await updateState(db, web.id, { quote });
+    const code = await createLinkCode(db, web.id, new Date());
+    const { kapso, model, post } = setup([{ text: "Welcome back! Your Sylhet quote is ready." }]);
+
+    await post(text("wamid.code1", `Hi! My code is ${code}`));
+
+    const sent = prompt(model);
+    expect(sent).toContain("Latest quote: Sylhet tea gardens 2-day");
+    expect(sent).toContain("continuing my website chat here on WhatsApp");
+    expect(sent).not.toContain(code);
+    expect(kapso.sends).toHaveLength(1);
+    const rows = (await stored()).filter((m) => m.conversationId === web.id);
+    expect(rows.map((m) => [m.sentBy, m.channel])).toEqual([
+      ["system", "whatsapp"],
+      ["customer", "whatsapp"],
+      ["ai", "whatsapp"],
+    ]);
+  });
+
+  it("tells the agent an expired code did not work, and links nothing", async () => {
+    const web = await findOrCreateConversation(db, { channel: "web", externalId: "visitor-old" });
+    const code = await createLinkCode(db, web.id, new Date(Date.now() - 20 * 60_000));
+    const { model, post } = setup([{ text: "That code has expired, but I can help from here." }]);
+
+    await post(text("wamid.code2", `Hi! My code is ${code}`));
+
+    expect(prompt(model)).toContain("expired or was already used");
+    expect((await stored()).filter((m) => m.conversationId === web.id)).toEqual([]);
   });
 });

@@ -25,12 +25,25 @@ export type QuoteError = {
 
 export type QuoteResult = { ok: true; quote: Quote } | { ok: false; error: QuoteError };
 
+// The tour the model named. Models often pass the customer's words ("Sylhet
+// tour") or a made-up slug ("sylhet-tea-gardens") instead of the slug, so the
+// text matches when it is a slug or holds exactly one slug as a word. No
+// match, or several, is unknown: asking beats guessing a price.
+export function matchTour<T extends { slug: string }>(tours: T[], text: string): T | undefined {
+  const lower = text.trim().toLowerCase();
+  const exact = tours.find((t) => t.slug === lower);
+  if (exact) return exact;
+  const words = new Set(lower.split(/[^a-z0-9]+/));
+  const named = tours.filter((t) => words.has(t.slug));
+  return named.length === 1 ? named[0] : undefined;
+}
+
 // Errors are values, not exceptions: the agent hands them to the model as data.
 export function computeQuote(
   priceList: PriceList,
   input: { tourSlug: string; travelers: number },
 ): QuoteResult {
-  const tour = priceList.tours.find((t) => t.slug === input.tourSlug);
+  const tour = matchTour(priceList.tours, input.tourSlug);
   if (!tour) {
     return fail("unknown_tour", `There is no tour called "${input.tourSlug}".`);
   }

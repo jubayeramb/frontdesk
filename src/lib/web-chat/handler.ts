@@ -20,6 +20,7 @@ import {
 } from "@/lib/conversations/store";
 import { sweep, type EventHandler } from "@/lib/webhooks/events";
 import { CHAT_COOKIE, CHAT_COOKIE_MAX_AGE_S, signConversationCookie, verifyConversationCookie } from "./cookie";
+import { maskedWhatsApp, noteText, shownToCustomer } from "./timeline";
 import { MAX_MESSAGE_LENGTH, type ChatMessage, type ChatTranscriptResponse, type ChatTurnResponse } from "./types";
 
 export type ChatDeps = {
@@ -88,11 +89,13 @@ export async function postChat(request: Request, deps: ChatDeps): Promise<Respon
 export async function getChat(request: Request, deps: Pick<ChatDeps, "db" | "secret">): Promise<Response> {
   const conversation = await conversationFromCookie(request, deps);
   if (!conversation) {
-    return Response.json({ conversationId: null, messages: [] } satisfies ChatTranscriptResponse);
+    return Response.json({ conversationId: null, owner: null, whatsapp: null, messages: [] } satisfies ChatTranscriptResponse);
   }
   const history = await loadWindow(deps.db, conversation.id, TRANSCRIPT_LIMIT);
   return Response.json({
     conversationId: conversation.id,
+    owner: conversation.owner,
+    whatsapp: await maskedWhatsApp(deps.db, conversation.contactId),
     messages: history.flatMap(toChatMessage),
   } satisfies ChatTranscriptResponse);
 }
@@ -109,6 +112,11 @@ async function answerOnce(
 
   const existing = await findByNonce(db, conversationId, inbound.clientNonce);
   if (existing) {
+    // A person owns it, so no replies are coming; say where they answer.
+    if (await personOwns(db, conversationId)) {
+      const sent = await webRepliesTo(db, existing);
+      return sent.length > 0 ? sent.map(asReply) : [personNotice(deps.whatsappNumber)];
+    }
     const stored = await waitForReplies(deps, existing);
     if (stored) return stored;
     if (now().getTime() - existing.createdAt.getTime() < DEAD_TURN_MS) return null;
@@ -126,6 +134,9 @@ async function answerOnce(
       whatsappNumber: deps.whatsappNumber,
     });
     await deliverTurn(db, webAdapter, { conversationId, to: conversationId, turn });
+    // The message is stored for the person who owns the conversation, and the
+    // visitor is pointed to WhatsApp instead of waiting on silence.
+    if (turn.replies.length === 0 && (await personOwns(db, conversationId))) return [personNotice(deps.whatsappNumber)];
     return turn.replies;
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
@@ -138,7 +149,7 @@ async function answerOnce(
 async function waitForReplies(deps: ChatDeps, inbound: Message): Promise<AgentReply[] | null> {
   const deadline = Date.now() + (deps.waitForTurnMs ?? 20_000);
   for (;;) {
-    const replies = await repliesTo(deps.db, inbound);
+    const replies = await webRepliesTo(deps.db, inbound);
     if (replies.length > 0) return replies.map(asReply);
     if (Date.now() >= deadline) return null;
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -150,20 +161,45 @@ async function conversationFromCookie(request: Request, deps: Pick<ChatDeps, "db
   return id ? getConversation(deps.db, id) : undefined;
 }
 
+// What a web turn got back. A WhatsApp message sent in the meantime belongs
+// to the other channel, and a suppressed reply never went out.
+async function webRepliesTo(db: Db, inbound: Message): Promise<Message[]> {
+  return (await repliesTo(db, inbound)).filter((m) => m.channel === "web" && m.deliveryStatus !== "suppressed");
+}
+
+async function personOwns(db: Db, conversationId: string): Promise<boolean> {
+  return (await getConversation(db, conversationId))?.owner === "human";
+}
+
+export const PERSON_NOTICE = "A person from our team is answering on WhatsApp. Reply there to reach them.";
+
+function personNotice(whatsappNumber: string | undefined): AgentReply {
+  if (!whatsappNumber) return { kind: "handoff", text: PERSON_NOTICE };
+  return { kind: "link", text: PERSON_NOTICE, url: `https://wa.me/${whatsappNumber}`, label: "Open WhatsApp" };
+}
+
+// The panel shows both channels, like /c, but keeps each reply whole so
+// choices still render as chips.
 function toChatMessage(message: Message): ChatMessage[] {
-  if (message.sentBy === "system" || message.payload?.continues) return [];
+  if (!shownToCustomer(message)) return [];
+  const base = { id: String(message.id), channel: message.channel };
+  if (message.sentBy === "system") {
+    const note = noteText(message);
+    return note ? [{ ...base, from: "note", reply: { kind: "text", text: note } }] : [];
+  }
   if (message.direction === "inbound") {
     const choiceId = message.payload?.choiceId;
     return [
       {
-        id: String(message.id),
+        ...base,
         from: "visitor",
         reply: { kind: "text", text: message.body },
         ...(typeof choiceId === "string" ? { choiceId } : {}),
       },
     ];
   }
-  return [{ id: String(message.id), from: "agent", reply: asReply(message) }];
+  if (message.sentBy === "human") return [{ ...base, from: "person", reply: { kind: "text", text: message.body } }];
+  return [{ ...base, from: "agent", reply: asReply(message) }];
 }
 
 // A stored agent reply keeps its kind in the payload; anything else is text.

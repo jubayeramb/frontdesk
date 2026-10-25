@@ -97,6 +97,9 @@ export const conversations = pgTable(
     kapsoConversationId: text("kapso_conversation_id"),
     waLastInboundAt: timestamp("wa_last_inbound_at", { withTimezone: true }),
     state: jsonb("state").$type<ConversationState>().notNull().default({}),
+    // Set when a link code moved this contact's WhatsApp number to a web
+    // conversation; a closed conversation is kept but never continued.
+    closedAt: timestamp("closed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -179,6 +182,18 @@ export const webhookEvents = pgTable(
   },
   (t) => [index("webhook_events_partition_idx").on(t.partitionKey, t.status, t.createdAt, t.id)],
 );
+
+// One-time codes that carry a web conversation over to WhatsApp.
+export const linkCodes = pgTable("link_codes", {
+  code: text("code").primaryKey(),
+  conversationId: uuid("conversation_id")
+    .notNull()
+    .references(() => conversations.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  usedByIdentity: integer("used_by_identity").references(() => channelIdentities.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export type Tour = typeof tours.$inferSelect;
 export type Booking = typeof bookings.$inferSelect;

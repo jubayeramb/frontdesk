@@ -3,8 +3,14 @@ import { formatBdt } from "@/lib/pricing/format";
 import type { Quote } from "@/lib/pricing/quote";
 
 // Amounts written with a currency mark: ৳58,000, Tk 58000, BDT 58,000,
-// 58,000 taka, $580. The model sometimes writes taka with the rupee sign.
-const AMOUNT = /(?:৳|₨|\$|\bTk\.?|\bRs\.?|\bBDT)\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:taka|tk\b|bdt\b)/gi;
+// 58,000 taka, $580. The model sometimes writes taka with a rupee sign.
+const AMOUNT = /(?:৳|₹|₨|\$|\bTk\.?|\bRs\.?|\bBDT)\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:taka|tk\b|bdt\b)/gi;
+const RUPEE = /(?:₹|₨|\bRs\.?)\s*(?=\d)/g;
+
+// Prices are in taka, so a rupee sign in front of an amount becomes ৳.
+export function inTaka(text: string): string {
+  return text.replace(RUPEE, "৳");
+}
 
 export function findAmounts(text: string): number[] {
   return [...text.matchAll(AMOUNT)].map((m) => Number((m[1] ?? m[2]!).replace(/,/g, "")));

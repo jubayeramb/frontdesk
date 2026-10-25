@@ -3,12 +3,12 @@ import { randomUUID } from "node:crypto";
 import { asc, eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { messages, webhookEvents, type WebhookEvent } from "@/db/schema";
+import { channelIdentities, conversations, messages, webhookEvents, type WebhookEvent } from "@/db/schema";
 import { seed } from "@/db/seed-data";
 import { setupTestDb } from "../../../test/int/db";
 import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-model";
 import { CHAT_COOKIE, signConversationCookie } from "./cookie";
-import { getChat, postChat } from "./handler";
+import { getChat, PERSON_NOTICE, postChat } from "./handler";
 import type { ChatTranscriptResponse, ChatTurnResponse } from "./types";
 
 const db = setupTestDb();
@@ -28,6 +28,7 @@ function setup(script: ScriptStep[] = [{ text: "Hi! Which tour are you intereste
     schedule: (work: () => Promise<void>) => void scheduled.push(work),
     now: () => now,
     waitForTurnMs: 2_000,
+    whatsappNumber: "15550000000",
   };
   return {
     model,
@@ -138,7 +139,7 @@ describe("POST /api/chat", () => {
     const { conversationId: victimId } = (await victim.json()) as ChatTurnResponse;
     const forged = `${CHAT_COOKIE}=${victimId}.${"0".repeat(64)}`;
 
-    expect(await (await chat.get(forged)).json()).toEqual({ conversationId: null, messages: [] });
+    expect(await (await chat.get(forged)).json()).toEqual({ conversationId: null, owner: null, whatsapp: null, messages: [] });
     const response = await chat.post({ text: "hello", nonce: randomUUID() }, forged);
     const body = (await response.json()) as ChatTurnResponse;
     expect(body.conversationId).not.toBe(victimId);
@@ -192,5 +193,76 @@ describe("POST /api/chat", () => {
     expect(chat.handled.map((e) => e.dedupeKey)).toEqual(["whatsapp.message.received:wamid.stuck"]);
     const [event] = await db.select().from(webhookEvents).orderBy(asc(webhookEvents.id));
     expect(event?.status).toBe("done");
+  });
+});
+
+describe("a conversation on both channels", () => {
+  // A web conversation that continued on WhatsApp, with a staff reply.
+  async function linked() {
+    const chat = setup();
+    const first = await chat.post({ text: "how much is the Sylhet tour for 2?", nonce: randomUUID() });
+    const cookie = cookieFrom(first);
+    const { conversationId } = (await first.json()) as ChatTurnResponse;
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, conversationId));
+    await db.insert(channelIdentities).values({ contactId: conversation!.contactId, channel: "whatsapp", externalId: "8801700004821" });
+    await db.insert(messages).values([
+      { conversationId, channel: "whatsapp", direction: "outbound", sentBy: "system", body: "Customer continued from the website on WhatsApp.", payload: { kind: "linked" } },
+      { conversationId, channel: "whatsapp", direction: "inbound", sentBy: "customer", body: "Hi! My code is TR-7KQ2MX" },
+      { conversationId, channel: "whatsapp", direction: "outbound", sentBy: "ai", body: "Welcome back!", payload: { kind: "text", text: "Welcome back!" }, deliveryStatus: "sent" },
+      { conversationId, channel: "whatsapp", direction: "inbound", sentBy: "customer", body: "can I talk to a person" },
+      { conversationId, channel: "whatsapp", direction: "outbound", sentBy: "system", body: "Handed to a person.", payload: { kind: "ownership", from: "ai", to: "human" } },
+      { conversationId, channel: "whatsapp", direction: "outbound", sentBy: "ai", body: "Never sent", payload: { kind: "text", text: "Never sent" }, deliveryStatus: "suppressed" },
+      { conversationId, channel: "whatsapp", direction: "outbound", sentBy: "human", body: "Hi, this is the team.", deliveryStatus: "sent" },
+    ]);
+    await db.update(conversations).set({ owner: "human" }).where(eq(conversations.id, conversationId));
+    return { chat, cookie, conversationId };
+  }
+
+  it("shows both channels, staff replies and notes, with the owner and the masked number", async () => {
+    const { chat, cookie } = await linked();
+    const transcript = (await (await chat.get(cookie)).json()) as ChatTranscriptResponse;
+    expect(transcript.owner).toBe("human");
+    expect(transcript.whatsapp).toBe("•••• 4821");
+    expect(transcript.messages.map((m) => [m.from, m.channel, m.reply.kind === "choices" ? m.reply.prompt : m.reply.text])).toEqual([
+      ["visitor", "web", "how much is the Sylhet tour for 2?"],
+      ["agent", "web", "Hi! Which tour are you interested in?"],
+      ["note", "whatsapp", "Continued on WhatsApp"],
+      ["visitor", "whatsapp", "Hi! My code is TR-7KQ2MX"],
+      ["agent", "whatsapp", "Welcome back!"],
+      ["visitor", "whatsapp", "can I talk to a person"],
+      ["note", "whatsapp", "A person joined"],
+      ["person", "whatsapp", "Hi, this is the team."],
+    ]);
+    expect(JSON.stringify(transcript)).not.toContain("8801700004821");
+  });
+
+  it("stores a web message to a person and points the visitor to WhatsApp without running the agent", async () => {
+    const { chat, cookie, conversationId } = await linked();
+    const nonce = randomUUID();
+    const response = await chat.post({ text: "are you there?", nonce }, cookie);
+    const notice = { kind: "link", text: PERSON_NOTICE, url: "https://wa.me/15550000000", label: "Open WhatsApp" };
+    expect(((await response.json()) as ChatTurnResponse).replies).toEqual([notice]);
+    expect(chat.model.doGenerateCalls).toHaveLength(1);
+
+    // A resubmission answers at once with the same notice and stores nothing more.
+    const started = Date.now();
+    const again = await chat.post({ text: "are you there?", nonce }, cookie);
+    expect(((await again.json()) as ChatTurnResponse).replies).toEqual([notice]);
+    expect(Date.now() - started).toBeLessThan(1_000);
+    const stored = await db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(asc(messages.id));
+    expect(stored.filter((m) => m.body === "are you there?")).toHaveLength(1);
+    expect(stored.at(-1)).toMatchObject({ channel: "web", sentBy: "customer", body: "are you there?" });
+  });
+
+  it("returns only the web replies to a resubmitted message, not what WhatsApp got meanwhile", async () => {
+    const chat = setup();
+    const nonce = randomUUID();
+    const first = await chat.post({ text: "hello", nonce });
+    const cookie = cookieFrom(first);
+    const { conversationId } = (await first.json()) as ChatTurnResponse;
+    await db.insert(messages).values({ conversationId, channel: "whatsapp", direction: "outbound", sentBy: "human", body: "From the inbox", deliveryStatus: "sent" });
+
+    const again = await chat.post({ text: "hello", nonce }, cookie);
+    expect(((await again.json()) as ChatTurnResponse).replies).toEqual([{ kind: "text", text: "Hi! Which tour are you interested in?" }]);
   });
 });

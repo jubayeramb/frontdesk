@@ -9,7 +9,8 @@ import { bookDeparture } from "@/lib/departures/book";
 import { departureLabel, listDepartures } from "@/lib/departures/departures";
 import { formatBdt } from "@/lib/pricing/format";
 import { getPriceList } from "@/lib/pricing/price-list";
-import { computeQuote, type Quote } from "@/lib/pricing/quote";
+import { computeQuote, matchTour, type Quote } from "@/lib/pricing/quote";
+import { createLinkCode, whatsappLink } from "@/lib/linking";
 import { transition } from "@/lib/ownership";
 import type { AgentReply, ChoicesReply } from "./replies";
 
@@ -163,22 +164,36 @@ export function createTurnTools(ctx: TurnContext) {
           });
           record.handoff = { kind: "handoff", text: HANDOFF_TEXT[reason] };
         } else {
-          // People only reply on WhatsApp, so the web visitor is sent there.
-          record.handoff = ctx.whatsappNumber
-            ? {
-                kind: "link",
-                text: "A person from our team replies on WhatsApp.",
-                url: `https://wa.me/${ctx.whatsappNumber}`,
-                label: "Continue on WhatsApp",
-              }
-            : { kind: "text", text: "A person from our team replies on WhatsApp." };
+          // People only reply on WhatsApp, so the web visitor is sent there
+          // with a code that brings this conversation along.
+          record.handoff = await continueReply("A person from our team replies on WhatsApp. This link brings your chat with you.");
         }
         return { ok: true as const, shownToCustomer: "The customer has been told a person will help. Write nothing more." };
       }),
     }),
   };
 
-  return { tools, record };
+  // A link to the WhatsApp number with a fresh one-time code prefilled.
+  async function continueReply(text: string): Promise<AgentReply> {
+    if (!ctx.whatsappNumber) return { kind: "text", text: "You can also reach us on WhatsApp." };
+    const code = await createLinkCode(ctx.db, ctx.conversationId, ctx.now);
+    return { kind: "link", text, url: whatsappLink(ctx.whatsappNumber, code), label: "Continue on WhatsApp" };
+  }
+
+  // Only website visitors can move to WhatsApp; on WhatsApp the tool is not offered.
+  const webTools = {
+    continueOnWhatsApp: tool({
+      description: "Give a website customer a link to continue this conversation on WhatsApp. Use when they ask to move to WhatsApp.",
+      inputSchema: z.object({}),
+      execute: guarded("continueOnWhatsApp", async () => {
+        record.choices = undefined;
+        record.handoff = await continueReply("Continue on WhatsApp with this link, and we'll pick up where we left off. It works for 15 minutes.");
+        return { ok: true as const, shownToCustomer: "The customer has the WhatsApp link. Write nothing more." };
+      }),
+    }),
+  };
+
+  return { tools: ctx.channel === "web" ? { ...tools, ...webTools } : tools, record };
 }
 
 type HandoffReason = "asked_for_person" | "change_booking" | "cancel_booking";
@@ -221,7 +236,7 @@ function guarded<I, O>(name: string, execute: (input: I) => Promise<O>) {
 }
 
 export async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: string) {
-  const [tour] = await ctx.db.select().from(tours).where(eq(tours.slug, tourSlug));
+  const tour = matchTour(await ctx.db.select().from(tours), tourSlug);
   if (!tour || !tour.active) {
     return { ok: false as const, error: `There is no bookable tour called "${tourSlug}".` };
   }

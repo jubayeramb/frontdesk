@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Db } from "@/db/client";
 import type { WebhookEvent } from "@/db/schema";
 import type { NamedModel } from "@/lib/agent/model";
-import { runTurn } from "@/lib/agent/run-turn";
+import { runTurn, type Inbound } from "@/lib/agent/run-turn";
 import { deliverTurn } from "@/lib/channels/deliver";
 import type { ChannelAdapter } from "@/lib/channels/types";
 import { kapsoMessageSchema, mapInbound } from "@/lib/channels/whatsapp/inbound";
@@ -17,6 +17,7 @@ import {
   markFailed,
   noteWhatsAppInbound,
 } from "@/lib/conversations/store";
+import { findCode, linkWhatsApp } from "@/lib/linking";
 import { transition } from "@/lib/ownership";
 import type { EventHandler } from "./events";
 import type { KapsoEvent } from "./normalize";
@@ -90,11 +91,16 @@ export function createKapsoHandler(deps: {
     if (await findByExternalId(deps.db, message.id)) return;
 
     const customer = message.from.replace(/\D/g, "");
-    const conversation = await findOrCreateConversation(deps.db, {
-      channel: "whatsapp",
-      externalId: customer,
-      displayName: kapso?.contact_name ?? undefined,
-    });
+    const displayName = kapso?.contact_name ?? undefined;
+    // A link code first moves the number onto the web conversation, so the
+    // lookup below finds that one.
+    const code = findCode(mapInbound(message, null)?.text ?? "");
+    let link: Inbound["link"];
+    if (code) {
+      const result = await linkWhatsApp(deps.db, { code, whatsappNumber: customer, displayName, now: now() });
+      link = result.linked ? "continued" : "rejected";
+    }
+    const conversation = await findOrCreateConversation(deps.db, { channel: "whatsapp", externalId: customer, displayName });
     const sentAt = message.timestamp ? new Date(Number(message.timestamp) * 1000) : now();
     await noteWhatsAppInbound(deps.db, conversation.id, { kapsoConversationId: kapso?.id, at: sentAt });
 
@@ -106,7 +112,7 @@ export function createKapsoHandler(deps: {
       db: deps.db,
       conversationId: conversation.id,
       channel: "whatsapp",
-      inbound: { ...inbound, externalId: message.id },
+      inbound: { ...inbound, externalId: message.id, link },
       now: now(),
       models: deps.models,
     });
@@ -132,6 +138,9 @@ export function createKapsoHandler(deps: {
       return { deferMs: deps.echoWaitMs ?? 5_000 };
     }
 
+    // The takeover goes first: its note then reads before the reply, and a
+    // retry after a failed insert still finds no stored id and finishes.
+    await transition(deps.db, { conversationId: conversation.id, event: "human_replied" });
     await appendMessage(deps.db, {
       conversationId: conversation.id,
       channel: "whatsapp",
@@ -141,7 +150,6 @@ export function createKapsoHandler(deps: {
       externalId: message.id,
       deliveryStatus: "sent",
     });
-    await transition(deps.db, { conversationId: conversation.id, event: "human_replied" });
   }
 
   // Kapso ends a conversation from the inbox or after 24 hours of quiet; either

@@ -27,6 +27,7 @@ export function respond(messages: ChatMessage[]): { content?: string; tool?: { n
   if (picked?.includes(":")) return { tool: { name: "bookDeparture", input: { departureId: picked } } };
 
   const lower = said.toLowerCase();
+  if (/whatsapp/.test(lower)) return { tool: { name: "continueOnWhatsApp", input: {} } };
   const tour = TOURS.find((t) => lower.includes(t)) ?? (picked && TOURS.includes(picked) ? picked : undefined) ?? earlierTour(messages);
   const travelers = /(\d+)\s*(people|persons|travell?ers|of us|adults)/.exec(lower)?.[1];
 

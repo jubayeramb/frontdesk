@@ -3,7 +3,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { cn } from "cn";
 import { ExternalLink, MessageCircle, SendHorizontal, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type SubmitEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type SubmitEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,10 +20,18 @@ import { RichText } from "./rich-text";
 // the same message to the server, not a second one.
 type Line = ChatMessage & { nonce?: string; status?: "sending" | "failed" };
 
-export function ChatWidget() {
+// How often an open panel picks up messages from WhatsApp and staff.
+const POLL_MS = 5000;
+
+type Status = Pick<ChatTranscriptResponse, "owner" | "whatsapp">;
+
+export function ChatWidget({ whatsappNumber }: { whatsappNumber: string }) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
+  const [status, setStatus] = useState<Status>({ owner: null, whatsapp: null });
   const [history, setHistory] = useState<"idle" | "loading" | "loaded" | "failed">("idle");
+  // Bumped on every send, so a poll that started before it can't drop its lines.
+  const sends = useRef(0);
   const [draft, setDraft] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,22 +44,59 @@ export function ChatWidget() {
   // where the visitor left off.
   function changeOpen(next: boolean) {
     setOpen(next);
+    // Closing drops #chat, so the link opens the panel again and a reload doesn't.
+    if (!next && window.location.hash === "#chat") {
+      window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    }
     if (!next || history !== "idle") return;
     setHistory("loading");
-    fetch("/api/chat")
-      .then((response) => (response.ok ? (response.json() as Promise<ChatTranscriptResponse>) : Promise.reject()))
-      .then((transcript) => {
-        setLines((current) => [...transcript.messages, ...current]);
-        setHistory("loaded");
-      })
+    loadTranscript()
+      .then(() => setHistory("loaded"))
       .catch(() => setHistory("failed"));
   }
+
+  // The server's transcript replaces what's shown, apart from messages still
+  // sending or failed, which only exist here.
+  async function loadTranscript(): Promise<void> {
+    const generation = sends.current;
+    const response = await fetch("/api/chat");
+    if (!response.ok) throw new Error(`transcript request failed with ${response.status}`);
+    const transcript = (await response.json()) as ChatTranscriptResponse;
+    if (generation !== sends.current) return;
+    setStatus({ owner: transcript.owner, whatsapp: transcript.whatsapp });
+    // Replies on WhatsApp are read out like web replies; the first load isn't.
+    const known = new Set(lines.map((line) => line.id));
+    const arrived = transcript.messages.filter((m) => !known.has(m.id) && m.channel === "whatsapp" && m.from !== "visitor");
+    if (history === "loaded" && arrived.length > 0) setAnnouncement(arrived.map((m) => spoken(m.reply)).join(" "));
+    setLines((current) => [...transcript.messages, ...current.filter((line) => line.status !== undefined)]);
+  }
+
+  const poll = useEffectEvent(() => {
+    if (document.visibilityState === "visible" && !busy) loadTranscript().catch(() => {});
+  });
+  useEffect(() => {
+    if (!open || history !== "loaded") return;
+    const timer = setInterval(() => poll(), POLL_MS);
+    return () => clearInterval(timer);
+  }, [open, history]);
+
+  // The header's "Chat" link and the hero button point at #chat.
+  const openFromHash = useEffectEvent(() => {
+    if (window.location.hash === "#chat") changeOpen(true);
+  });
+  useEffect(() => {
+    const onHashChange = () => openFromHash();
+    onHashChange();
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [lines, open]);
 
   const run = useCallback(async (line: Line) => {
+    sends.current += 1;
     setLines((current) => current.map((l) => (l.id === line.id ? { ...l, status: "sending" } : l)));
     try {
       const response = await fetch("/api/chat", {
@@ -67,7 +112,7 @@ export function ChatWidget() {
       const { replies } = (await response.json()) as ChatTurnResponse;
       setLines((current) => [
         ...current.map((l) => (l.id === line.id ? { ...l, status: undefined } : l)),
-        ...replies.map((reply, i): Line => ({ id: `${line.nonce}-${i}`, from: "agent", reply })),
+        ...replies.map((reply, i): Line => ({ id: `${line.nonce}-${i}`, from: "agent", channel: "web", reply })),
       ]);
       setAnnouncement(replies.map(spoken).join(" "));
     } catch {
@@ -79,7 +124,15 @@ export function ChatWidget() {
   const send = useCallback(
     (text: string, choiceId?: string) => {
       const nonce = crypto.randomUUID();
-      const line: Line = { id: nonce, nonce, from: "visitor", reply: { kind: "text", text }, choiceId, status: "sending" };
+      const line: Line = {
+        id: nonce,
+        nonce,
+        from: "visitor",
+        channel: "web",
+        reply: { kind: "text", text },
+        choiceId,
+        status: "sending",
+      };
       setLines((current) => [...current, line]);
       void run(line);
       inputRef.current?.focus();
@@ -129,11 +182,15 @@ export function ChatWidget() {
                 <Dialog.Description className="text-sm text-muted-foreground">
                   Quotes, departures and bookings. Demo only.
                 </Dialog.Description>
+                <a href="/c" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                  Your conversation, web and WhatsApp
+                </a>
               </div>
               <Dialog.Close render={<Button variant="ghost" size="icon" />} aria-label="Close chat">
                 <X aria-hidden />
               </Dialog.Close>
             </header>
+            <StatusStrip status={status} whatsappNumber={whatsappNumber} />
 
             <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4">
               <AgentBubble>
@@ -191,10 +248,18 @@ function LineView({
   onPick: (option: ChoiceOption) => void;
   onRetry: () => void;
 }) {
+  if (line.from === "note") {
+    return (
+      <p className="py-1 text-center text-xs font-medium text-muted-foreground">
+        {line.reply.kind === "choices" ? line.reply.prompt : line.reply.text}
+      </p>
+    );
+  }
   if (line.from === "visitor") {
     const text = line.reply.kind === "choices" ? line.reply.prompt : line.reply.text;
     return (
       <div className="flex flex-col items-end gap-1">
+        {line.channel === "whatsapp" && <ChannelLabel>On WhatsApp</ChannelLabel>}
         <p
           className={cn(
             "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm whitespace-pre-wrap text-primary-foreground",
@@ -214,7 +279,41 @@ function LineView({
       </div>
     );
   }
-  return <ReplyView reply={line.reply} picked={picked} active={active} onPick={onPick} />;
+  const from = line.from === "person" ? "Triplone Tours team" : null;
+  if (!from && line.channel === "web") return <ReplyView reply={line.reply} picked={picked} active={active} onPick={onPick} />;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <ChannelLabel>{[from, line.channel === "whatsapp" ? "On WhatsApp" : null].filter(Boolean).join(" · ")}</ChannelLabel>
+      <ReplyView reply={line.reply} picked={picked} active={active} onPick={onPick} />
+    </div>
+  );
+}
+
+function ChannelLabel({ children }: { children: React.ReactNode }) {
+  return <span className="text-xs font-medium text-muted-foreground">{children}</span>;
+}
+
+// Who answers now, once the chat has moved to WhatsApp or a person has it.
+function StatusStrip({ status, whatsappNumber }: { status: Status; whatsappNumber: string }) {
+  if (status.owner !== "human" && !status.whatsapp) return null;
+  const text =
+    status.owner === "human"
+      ? "A person from our team is answering on WhatsApp."
+      : `This chat continues on WhatsApp ${status.whatsapp}.`;
+  return (
+    <div className="flex items-center justify-between gap-3 border-b bg-muted/60 px-4 py-2 text-sm" data-testid="chat-status">
+      <p>{text}</p>
+      <a
+        href={`https://wa.me/${whatsappNumber}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex shrink-0 items-center gap-1 font-medium underline underline-offset-4"
+      >
+        Open WhatsApp
+        <ExternalLink aria-hidden className="size-3.5" />
+      </a>
+    </div>
+  );
 }
 
 function ReplyView({
