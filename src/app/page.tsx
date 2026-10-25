@@ -88,6 +88,7 @@ export default function Home() {
       <footer className="border-t pt-6 pb-24 text-sm text-muted-foreground">
         <div className="mx-auto max-w-5xl space-y-1 px-4 sm:px-6">
           <p>Chats are stored for 7 days and then deleted.</p>
+          <p>WhatsApp messages also go through Kapso, our WhatsApp provider, which keeps its own copy.</p>
           <p>This is a demo, so don&apos;t send personal details like your phone number, address or ID.</p>
           <p>The front desk is an AI agent and can get things wrong.</p>
         </div>

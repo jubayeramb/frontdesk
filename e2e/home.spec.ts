@@ -80,6 +80,7 @@ test("the footer has the retention and privacy note", async ({ page }) => {
   const footer = page.locator("footer");
   await footer.scrollIntoViewIfNeeded();
   await expect(footer.getByText("Chats are stored for 7 days and then deleted.")).toBeVisible();
+  await expect(footer.getByText("WhatsApp messages also go through Kapso, our WhatsApp provider, which keeps its own copy.")).toBeVisible();
   await expect(footer.getByText("don't send personal details")).toBeVisible();
 });
 

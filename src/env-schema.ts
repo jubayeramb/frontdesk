@@ -29,6 +29,8 @@ export const serverSchema = z.object({
   // Agent turns per UTC day for everyone together. About 3 model requests a
   // turn keeps 250 under Groq's 1,000 requests a day per model.
   GLOBAL_DAILY_TURN_CAP: z.coerce.number().int().positive().default(250),
+  // Vercel's cron sends it to the retention job, which refuses anything else.
+  CRON_SECRET: z.string().min(16, "Use at least 16 characters."),
 });
 
 export type Env = z.infer<typeof serverSchema>;
