@@ -1,4 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "crons": [{ "path": "/api/cron/retention", "schedule": "0 21 * * *" }]
+  "framework": "nextjs",
+  "regions": [
+    "iad1"
+  ],
+  "ignoreCommand": "[ \"$VERCEL_ENV\" != \"production\" ]",
+  "crons": [
+    {
+      "path": "/api/cron/retention",
+      "schedule": "0 21 * * *"
+    }
+  ]
 }

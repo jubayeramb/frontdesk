@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseEnv } from "./env-schema";
+import { parseDatabaseEnv, parseEnv } from "./env-schema";
 
 const valid = {
   DATABASE_URL: "postgres://u:p@localhost:5432/db",
@@ -55,5 +55,12 @@ describe("parseEnv", () => {
     expect(() => parseEnv({ ...valid, KAPSO_PHONE_NUMBER_ID: "+1 205-813-8571" })).toThrow(
       /KAPSO_PHONE_NUMBER_ID: Use the numeric phone_number_id/,
     );
+  });
+});
+
+describe("parseDatabaseEnv", () => {
+  it("needs only the database URL, so migrations run without the app's secrets", () => {
+    expect(parseDatabaseEnv({ DATABASE_URL: valid.DATABASE_URL })).toEqual({ DATABASE_URL: valid.DATABASE_URL });
+    expect(() => parseDatabaseEnv({ GROQ_API_KEY: "gsk_test" })).toThrow(/DATABASE_URL/);
   });
 });

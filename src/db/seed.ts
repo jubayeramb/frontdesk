@@ -1,10 +1,10 @@
 // Loads the default Triplone Tours tours and prices. Run with `pnpm db:seed`.
-import { parseEnv } from "@/env-schema";
+import { parseDatabaseEnv } from "@/env-schema";
 import { createDb } from "./client";
 import { seed } from "./seed-data";
 
 async function main() {
-  const env = parseEnv(process.env);
+  const env = parseDatabaseEnv(process.env);
   const { db, pool } = createDb(env.DATABASE_URL, env.DATABASE_WS_PROXY);
   await seed(db);
   await pool.end();
