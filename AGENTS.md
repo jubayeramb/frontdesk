@@ -116,6 +116,7 @@ The `dev` branch is for local work only.
 - CI's `migrate` job runs `pnpm db:migrate` on every push to `main` once the checks pass, with the `PRODUCTION_DATABASE_URL` repository secret.
   It needs nothing else: `migrate.ts` and `seed.ts` only read the database variables.
 - Vercel promotes a production deployment only after that job is green (Deployment Checks), so new code never meets an old schema.
+- Only `main` deploys. `ignoreCommand` in `vercel.json` skips every preview build, since previews would need a database of their own.
 - Production env vars live in Vercel only.
   `.env.production.local` (git-ignored) holds them locally, and `scripts/push-prod-env.sh` pushes them without printing values.
 - Seed production by hand once: `DATABASE_URL=<production url> pnpm db:seed`.
