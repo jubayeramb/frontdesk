@@ -21,11 +21,14 @@ async function result<T>(value: T | PromiseLike<T> | AsyncIterable<T>): Promise<
   return resolved as T;
 }
 
-async function setup() {
+// `latest` is the customer's message the turn answers; a booking needs it.
+async function setup(latest?: { text: string; choiceId?: string }) {
   await seed(db);
   const conversation = await newConversation(db);
-  return { conversation, ...createTurnTools({ db, conversationId: conversation.id, now }) };
+  return { conversation, ...createTurnTools({ db, conversationId: conversation.id, now, latest }) };
 }
+
+const tap = (choiceId: string) => ({ text: "", choiceId });
 
 describe("listTours", () => {
   it("returns active tours with prices and offers them as choices", async () => {
@@ -115,7 +118,7 @@ describe("bookDeparture", () => {
   });
 
   it("books the quoted tour and stores the booking in the state", async () => {
-    const { tools, conversation } = await setup();
+    const { tools, conversation } = await setup(tap("sundarbans:2026-11-08"));
     await tools.getQuote.execute!({ tourSlug: "sundarbans", travelers: 2 }, call);
     const result = await tools.bookDeparture.execute!({ departureId: "sundarbans:2026-11-08" }, call);
     expect(result).toMatchObject({
@@ -132,13 +135,13 @@ describe("bookDeparture", () => {
   });
 
   it("uses a quote for one booking only, so a later pick asks for the travelers again", async () => {
-    const { tools, conversation } = await setup();
+    const { tools, conversation } = await setup(tap("sylhet:2026-11-06"));
     await tools.getQuote.execute!({ tourSlug: "sylhet", travelers: 3 }, call);
     expect(await tools.bookDeparture.execute!({ departureId: "sylhet:2026-11-06" }, call)).toMatchObject({ ok: true, travelers: 3 });
 
     // Seen on a real phone: days later the customer picked another Sylhet date
     // and was booked for the 3 travelers of the old quote.
-    const later = createTurnTools({ db, conversationId: conversation.id, now });
+    const later = createTurnTools({ db, conversationId: conversation.id, now, latest: tap("sylhet:2026-11-13") });
     const result = await later.tools.bookDeparture.execute!({ departureId: "sylhet:2026-11-13" }, call);
     expect(result).toMatchObject({ ok: false, error: expect.stringContaining("no quote") });
     const state = (await getConversation(db, conversation.id))?.state;
@@ -147,11 +150,34 @@ describe("bookDeparture", () => {
   });
 
   it("offers current departures when the one picked is no longer available", async () => {
-    const { tools, record } = await setup();
+    const { tools, record } = await setup(tap("sundarbans:2026-11-02"));
     await tools.getQuote.execute!({ tourSlug: "sundarbans", travelers: 2 }, call);
     const result = await tools.bookDeparture.execute!({ departureId: "sundarbans:2026-11-02" }, call);
-    expect(result).toMatchObject({ ok: false, currentDepartures: { ok: true } });
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("not available"), currentDepartures: { ok: true } });
     expect(record.choices?.options[0]?.id).toBe("sundarbans:2026-11-05");
+  });
+
+  it("books a departure the customer named by its date", async () => {
+    const { tools } = await setup({ text: "Book the 8th of November please" });
+    await tools.getQuote.execute!({ tourSlug: "sundarbans", travelers: 2 }, call);
+    expect(await tools.bookDeparture.execute!({ departureId: "sundarbans:2026-11-08" }, call)).toMatchObject({ ok: true });
+  });
+
+  // Seen on a real phone: "M2" after the departures booked the second one.
+  it.each([
+    ["text that picks nothing", { text: "M2" }],
+    ["a date that is not this departure", { text: "8 Nov" }],
+    ["a tap on another departure", tap("sundarbans:2026-11-08")],
+    ["no message at all", undefined],
+  ])("books nothing for %s and offers the departures", async (_, latest) => {
+    const { tools, conversation, record } = await setup(latest);
+    await tools.getQuote.execute!({ tourSlug: "sundarbans", travelers: 2 }, call);
+    const result = await tools.bookDeparture.execute!({ departureId: "sundarbans:2026-11-05" }, call);
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("not picked"), currentDepartures: { ok: true } });
+    expect(record.choices?.options.map((o) => o.id)).toContain("sundarbans:2026-11-05");
+    const state = (await getConversation(db, conversation.id))?.state;
+    expect(state?.booking).toBeUndefined();
+    expect(state?.quote).toBeDefined();
   });
 });
 

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { linkCodes, turns, type Channel } from "@/db/schema";
 import { seed } from "@/db/seed-data";
-import { getConversation, loadWindow } from "@/lib/conversations/store";
+import { appendMessage, getConversation, loadWindow } from "@/lib/conversations/store";
 import { findCode } from "@/lib/linking";
 import { setupTestDb } from "../../../test/int/db";
 import { newConversation } from "../../../test/int/fixtures";
@@ -283,13 +283,79 @@ describe("choices", () => {
         { tools: [{ name: "bookDeparture", input: { departureId: "sundarbans:2026-11-02" } }] },
         { text: "That departure has closed, but these are open:" },
       ],
-      { text: "book today's one" },
+      { text: "Mon 2 Nov", choiceId: "sundarbans:2026-11-02" },
       { conversationId: first.conversationId },
     );
     expect(replies[1]).toMatchObject({
       kind: "choices",
       options: expect.arrayContaining([{ id: "sundarbans:2026-11-05", label: "Thu 5 Nov" }]),
     });
+  });
+});
+
+describe("bookings need the customer's pick", () => {
+  async function departuresOffered() {
+    await seed(db);
+    return turn(
+      [
+        { tools: [{ name: "getQuote", input: { tourSlug: "sundarbans", travelers: 2 } }] },
+        { tools: [{ name: "listDepartures", input: { tourSlug: "sundarbans" } }] },
+        { text: "That's ৳29,000 for two. Pick a departure:" },
+      ],
+      { text: "Sundarbans for 2, please" },
+    );
+  }
+
+  // Seen on a real phone: "M2" after the departures booked the second one.
+  it("books nothing for text that picks no departure, even when the model books", async () => {
+    const first = await departuresOffered();
+    const { replies } = await turn(
+      [
+        { tools: [{ name: "bookDeparture", input: { departureId: "sundarbans:2026-11-08" } }] },
+        { text: "Which departure would you like?" },
+      ],
+      { text: "M2" },
+      { conversationId: first.conversationId },
+    );
+    expect((await getConversation(db, first.conversationId))?.state.booking).toBeUndefined();
+    expect(replies[1]).toMatchObject({
+      kind: "choices",
+      options: expect.arrayContaining([{ id: "sundarbans:2026-11-08", label: "Sun 8 Nov" }]),
+    });
+  });
+
+  it("books a tap that a retry reads from the stored message", async () => {
+    const first = await departuresOffered();
+    const stored = await appendMessage(db, {
+      conversationId: first.conversationId,
+      channel: "web",
+      direction: "inbound",
+      sentBy: "customer",
+      body: "Sun 8 Nov",
+      payload: { choiceId: "sundarbans:2026-11-08" },
+    });
+    await runTurn({
+      db,
+      conversationId: first.conversationId,
+      channel: "web",
+      inbound: { text: stored.body },
+      storedInbound: stored,
+      now,
+      models: only(
+        scriptedModel([
+          { tools: [{ name: "bookDeparture", input: { departureId: "sundarbans:2026-11-08" } }] },
+          { text: "Booked for Sun 8 Nov." },
+        ]),
+      ),
+    });
+    expect((await getConversation(db, first.conversationId))?.state.booking).toMatchObject({ departsOn: "2026-11-08" });
+  });
+});
+
+describe("model settings", () => {
+  it("calls the model at temperature 0.2, so the same history gets the same tools", async () => {
+    const { model } = await turn([{ text: "Hi! How can I help?" }], { text: "hi" });
+    expect(model.doGenerateCalls.map((c) => c.temperature)).toEqual([0.2]);
   });
 });
 

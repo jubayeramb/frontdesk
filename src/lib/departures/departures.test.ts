@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   departureLabel,
   listDepartures,
+  namesDepartureDate,
   parseDepartureId,
   type DepartureTour,
 } from "./departures";
@@ -78,4 +79,15 @@ describe("departureLabel", () => {
   it("labels a Dhaka date", () => {
     expect(departureLabel("2026-11-05")).toBe("Thu 5 Nov");
   });
+});
+
+describe("namesDepartureDate", () => {
+  it.each(["1 Nov", "Nov 1st", "1st November", "book the 1st of November please", "Sunday 1 nov", "1-Nov"])(
+    "%s names Sun 1 Nov",
+    (text) => expect(namesDepartureDate(text, "2026-11-01")).toBe(true),
+  );
+
+  it.each(["M2", "2", "Sunday", "11 Nov", "1 Dec", "Nov 11", "the second one"])("%s does not name Sun 1 Nov", (text) =>
+    expect(namesDepartureDate(text, "2026-11-01")).toBe(false),
+  );
 });

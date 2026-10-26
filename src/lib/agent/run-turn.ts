@@ -18,6 +18,8 @@ const MAX_STEPS = 5;
 // The model reads at most this much of one customer message; the stored
 // message keeps all of it.
 export const MODEL_TEXT_LIMIT = 1_000;
+// Low, so the same history gets the same tools; Groq's default is 1.
+export const MODEL_TEMPERATURE = 0.2;
 
 // A tap on a button or list row carries the option id; typed text does not.
 // `externalId` is the channel's id for the message, when it has one, and
@@ -92,7 +94,15 @@ export async function runTurn(input: {
   }
 
   const history = await loadWindow(db, conversationId);
-  const { tools, record } = createTurnTools({ db, conversationId, now, channel, whatsappNumber: input.whatsappNumber });
+  const choiceId = inboundRow.payload?.choiceId;
+  const { tools, record } = createTurnTools({
+    db,
+    conversationId,
+    now,
+    channel,
+    whatsappNumber: input.whatsappNumber,
+    latest: { text: inboundRow.body, choiceId: typeof choiceId === "string" ? choiceId : undefined },
+  });
   const system = buildSystemPrompt({ channel, state: conversation.state, now });
 
   const outcome = await withFallback(input.models, (model) =>
@@ -102,6 +112,7 @@ export async function runTurn(input: {
       messages: toModelMessages(history),
       tools,
       stopWhen: isStepCount(MAX_STEPS),
+      temperature: MODEL_TEMPERATURE,
       maxRetries: 0, // withFallback switches models instead of waiting
     }),
   );
