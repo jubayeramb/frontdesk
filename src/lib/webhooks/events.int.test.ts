@@ -77,30 +77,57 @@ describe("drain", () => {
     expect(seen.sort()).toEqual(["a1", "b1"]);
   });
 
-  it("stops at a failure so later events wait their turn, and fails an event after 3 attempts", async () => {
+  it("retries a failed event in the same drain after a short wait, before anything behind it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await storeEvents(db, events("8801700000001", "flaky", "next"));
+    const seen: string[] = [];
+    let failures = 0;
+    const handle = async (event: WebhookEvent) => {
+      if (idOf(event) === "flaky" && failures++ === 0) throw new Error("model exploded");
+      seen.push(idOf(event));
+    };
+
+    const started = Date.now();
+    expect(await drain(db, "8801700000001", handle, { retryBaseMs: 200 })).toBe(2);
+
+    expect(Date.now() - started).toBeGreaterThanOrEqual(200);
+    expect(seen).toEqual(["flaky", "next"]);
+    expect(await statuses()).toEqual([
+      ["flaky", "done", 2],
+      ["next", "done", 1],
+    ]);
+  });
+
+  it("fails an event after 3 attempts, keeps its error, and goes on to the next", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await storeEvents(db, events("8801700000001", "bad", "next"));
     const handle = async (event: WebhookEvent) => {
       if (idOf(event) === "bad") throw new Error("model exploded");
     };
 
-    await drain(db, "8801700000001", handle);
-    expect(await statuses()).toEqual([
-      ["bad", "pending", 1],
-      ["next", "pending", 0],
-    ]);
-    await drain(db, "8801700000001", handle);
-    await drain(db, "8801700000001", handle);
-    expect((await statuses())[0]).toEqual(["bad", "failed", 3]);
+    await drain(db, "8801700000001", handle, { retryBaseMs: 20 });
 
-    // Out of attempts, it no longer blocks the next event.
-    await drain(db, "8801700000001", handle);
     expect(await statuses()).toEqual([
       ["bad", "failed", 3],
       ["next", "done", 1],
     ]);
     const [failed] = await db.select().from(webhookEvents).where(eq(webhookEvents.status, "failed"));
     expect(failed!.error).toBe("Error: model exploded");
+  });
+
+  it("leaves a retry that is too far off to the next request", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await storeEvents(db, events("8801700000001", "bad", "next"));
+    const handle = async (event: WebhookEvent) => {
+      if (idOf(event) === "bad") throw new Error("model exploded");
+    };
+
+    await drain(db, "8801700000001", handle, { retryBaseMs: 60_000 });
+
+    expect(await statuses()).toEqual([
+      ["bad", "pending", 1],
+      ["next", "pending", 0],
+    ]);
   });
 });
 

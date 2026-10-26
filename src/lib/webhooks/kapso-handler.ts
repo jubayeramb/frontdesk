@@ -1,8 +1,9 @@
 import { z } from "zod";
 
 import type { Db } from "@/db/client";
-import type { WebhookEvent } from "@/db/schema";
+import type { Message, WebhookEvent } from "@/db/schema";
 import type { NamedModel } from "@/lib/agent/model";
+import type { AgentReply } from "@/lib/agent/replies";
 import { runTurn, type Inbound } from "@/lib/agent/run-turn";
 import { deliverTurn } from "@/lib/channels/deliver";
 import type { ChannelAdapter } from "@/lib/channels/types";
@@ -13,9 +14,11 @@ import {
   findConversation,
   hasSendInFlight,
   findOrCreateConversation,
+  getConversation,
   lastChoices,
   markFailed,
   noteWhatsAppInbound,
+  repliesTo,
 } from "@/lib/conversations/store";
 import type { Limits } from "@/lib/guards";
 import { findCode, linkWhatsApp } from "@/lib/linking";
@@ -92,10 +95,11 @@ export function createKapsoHandler(deps: {
 
   async function received(event: WebhookEvent) {
     const { message, conversation: kapso } = receivedSchema.parse(event.payload);
-    // A retry after the turn already stored this message must not answer twice.
-    if (await findByExternalId(deps.db, message.id)) return;
-
     const customer = message.from.replace(/\D/g, "");
+    // A retry finishes what an earlier attempt started, and never answers twice.
+    const stored = await findByExternalId(deps.db, message.id);
+    if (stored) return resume(stored, customer);
+
     const displayName = kapso?.contact_name ?? undefined;
     // A link code first moves the number onto the web conversation, so the
     // lookup below finds that one.
@@ -129,6 +133,34 @@ export function createKapsoHandler(deps: {
       limits: deps.limits,
     });
     await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to: customer, turn, now: now() });
+  }
+
+  // What follows the stored message says how far the first attempt got: no
+  // reply means the turn died before storing one, so it runs now for the
+  // stored message; replies never attempted are sent; anything else finished.
+  // The customer's later events wait behind this one, so none can follow yet.
+  async function resume(inbound: Message, customer: string) {
+    const after = await repliesTo(deps.db, inbound);
+    if (after.length > 0) {
+      const unsent = after.filter((m) => m.sentBy === "ai" && m.deliveryStatus === null && !m.payload?.continues);
+      if (unsent.length === 0) return;
+      const turn = { replies: unsent.map((m) => m.payload as AgentReply), messageIds: unsent.map((m) => m.id) };
+      await deliverTurn(deps.db, deps.adapter, { conversationId: inbound.conversationId, to: customer, turn, now: now() });
+      return;
+    }
+    if (!(await getConversation(deps.db, inbound.conversationId))) return;
+    const unsupported = inbound.payload?.unsupported;
+    const turn = await runTurn({
+      db: deps.db,
+      conversationId: inbound.conversationId,
+      channel: "whatsapp",
+      inbound: { text: inbound.body, ...(typeof unsupported === "string" ? { unsupported } : {}) },
+      storedInbound: inbound,
+      now: now(),
+      models: deps.models,
+      limits: deps.limits,
+    });
+    await deliverTurn(deps.db, deps.adapter, { conversationId: inbound.conversationId, to: customer, turn, now: now() });
   }
 
   // Kapso reports every outbound message, ours and the inbox's alike, with no

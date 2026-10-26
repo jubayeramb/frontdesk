@@ -17,6 +17,9 @@ export type EventHandler = (event: WebhookEvent) => Promise<void | { deferMs: nu
 // How long a drain waits in place for a deferred event before leaving it to
 // the next request or the sweep.
 const MAX_WAIT_MS = 15_000;
+// A failed event is tried again after this times its attempts so far, by the
+// same drain, so a customer's queue never waits on unrelated traffic.
+export const RETRY_BASE_MS = 5_000;
 
 // Stores each event once. Returns the events stored for the first time, and
 // the partitions the delivery touched, including ones whose events were
@@ -89,25 +92,33 @@ async function defer(db: Db, event: WebhookEvent, ms: number): Promise<void> {
     .where(eq(webhookEvents.id, event.id));
 }
 
-async function finish(db: Db, event: WebhookEvent, error?: unknown): Promise<void> {
+async function finish(db: Db, event: WebhookEvent, error?: unknown, retryBaseMs = RETRY_BASE_MS): Promise<void> {
   if (error === undefined) {
     await db.update(webhookEvents).set({ status: "done", error: null, updatedAt: sql`now()` }).where(eq(webhookEvents.id, event.id));
     return;
   }
+  const outOfAttempts = event.attempts >= MAX_ATTEMPTS;
   await db
     .update(webhookEvents)
     .set({
-      status: event.attempts >= MAX_ATTEMPTS ? "failed" : "pending",
+      status: outOfAttempts ? "failed" : "pending",
       error: describe(error),
+      notBefore: outOfAttempts ? null : sql`now() + make_interval(secs => ${(retryBaseMs * event.attempts) / 1000})`,
       updatedAt: sql`now()`,
     })
     .where(eq(webhookEvents.id, event.id));
 }
 
 // Processes a partition's pending events one at a time, in arrival order.
-// Stops at the first failure: the event stays first in line, and a later
-// sweep retries it, so nothing behind it runs out of order.
-export async function drain(db: Db, partitionKey: string, handle: EventHandler): Promise<number> {
+// A failed event stays first in line and is retried here after a short wait,
+// so nothing behind it runs out of order; out of attempts, it is marked failed
+// and the next one runs.
+export async function drain(
+  db: Db,
+  partitionKey: string,
+  handle: EventHandler,
+  opts: { retryBaseMs?: number } = {},
+): Promise<number> {
   let processed = 0;
   while (processed < MAX_PER_DRAIN) {
     const event = await claimNext(db, partitionKey);
@@ -122,9 +133,9 @@ export async function drain(db: Db, partitionKey: string, handle: EventHandler):
     try {
       result = await handle(event);
     } catch (error) {
-      await finish(db, event, error);
+      await finish(db, event, error, opts.retryBaseMs);
       console.error(`webhook event ${event.id} (${event.eventType}) failed on attempt ${event.attempts}: ${errorClass(error)}`);
-      break;
+      continue;
     }
     if (result?.deferMs) {
       await defer(db, event, result.deferMs);

@@ -47,6 +47,9 @@ export async function runTurn(input: {
   conversationId: string;
   channel: Channel;
   inbound: Inbound;
+  // The inbound message when an earlier attempt already stored it, so a retry
+  // answers it without a second copy.
+  storedInbound?: Message;
   now: Date;
   models: NamedModel[];
   // Where a web visitor is sent to reach a person, digits only.
@@ -60,7 +63,9 @@ export async function runTurn(input: {
   const conversation = await getConversation(db, conversationId);
   if (!conversation) throw new Error(`Unknown conversation ${conversationId}`);
 
-  const inboundRow = await appendMessage(db, {
+  const inboundRow =
+    input.storedInbound ??
+    (await appendMessage(db, {
     conversationId,
     channel,
     direction: "inbound",
@@ -75,7 +80,7 @@ export async function runTurn(input: {
           : undefined,
     externalId: inbound.externalId,
     clientNonce: inbound.clientNonce,
-  });
+  }));
   // The message is kept either way; a guard may answer it without the model,
   // or not at all (a person owns the conversation).
   const guard = await checkGuards(db, { conversation, unsupported: inbound.unsupported !== undefined, now, limits: input.limits });

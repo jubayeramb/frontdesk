@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import type { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
-import { conversations, messages, webhookEvents } from "@/db/schema";
+import { contacts, conversations, messages, turns, webhookEvents } from "@/db/schema";
 import { seed } from "@/db/seed-data";
 import { createWhatsAppAdapter } from "@/lib/channels/whatsapp/adapter";
 import { setupTestDb } from "../../../test/int/db";
@@ -12,7 +12,7 @@ import { scriptedModel, type ScriptStep } from "../../../test/support/scripted-m
 import { createLinkCode } from "@/lib/linking";
 import { CONTACT_LIMIT_REPLY, UNSUPPORTED_REPLY } from "@/lib/guards";
 import { transition } from "@/lib/ownership";
-import { findOrCreateConversation, updateState } from "@/lib/conversations/store";
+import { appendMessage, findOrCreateConversation, updateState } from "@/lib/conversations/store";
 import { drain } from "./events";
 import { createKapsoAcknowledger, createKapsoHandler } from "./kapso-handler";
 import { receiveKapsoWebhook } from "./receive";
@@ -245,6 +245,109 @@ describe("whatsapp.message.received", () => {
     expect(kapso.log).toHaveLength(0);
     expect(await stored()).toHaveLength(0);
     expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done" });
+  });
+});
+
+describe("retried message.received", () => {
+  // Stores the delivery only, so a test can drain it itself.
+  async function store(handle: ReturnType<typeof createKapsoHandler>, request: Request) {
+    await receiveKapsoWebhook(request, { db, secret: FIXTURE_SECRET, phoneNumberId: "1382322134966757", handle, schedule: () => {} });
+  }
+
+  function handler(model: MockLanguageModelV4 | ReturnType<typeof scriptedModel>) {
+    const kapso = fakeKapso();
+    const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: "1382322134966757", fetch: kapso.fetch });
+    return { kapso, handle: createKapsoHandler({ db, adapter, models: [{ id: "primary", model }], echoWaitMs: 50 }) };
+  }
+
+  // The customer's message and its event, as if a first attempt stored the
+  // message and then died.
+  async function interrupted(handle: ReturnType<typeof createKapsoHandler>, id: string, body: string) {
+    await store(handle, text(id, body));
+    const conversation = await findOrCreateConversation(db, { channel: "whatsapp", externalId: CUSTOMER });
+    await db.update(conversations).set({ waLastInboundAt: new Date() }).where(eq(conversations.id, conversation.id));
+    const inbound = await appendMessage(db, { conversationId: conversation.id, channel: "whatsapp", direction: "inbound", sentBy: "customer", body, externalId: id });
+    return { conversation, inbound };
+  }
+
+  it("answers a message whose turn threw, in the same drain, without a second copy of it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    let calls = 0;
+    const model = scriptedModel([{ text: "Hi! Which tour are you thinking of?" }]);
+    const generate = model.doGenerate.bind(model);
+    model.doGenerate = async (options) => {
+      if (calls++ === 0) throw new TypeError("fetch failed mid-turn");
+      return generate(options);
+    };
+    const { kapso, handle } = handler(model);
+    await store(handle, text("wamid.m7", "M7"));
+
+    await drain(db, CUSTOMER, handle, { retryBaseMs: 50 });
+
+    expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual(["Hi! Which tour are you thinking of?"]);
+    expect((await stored()).map((m) => [m.sentBy, m.body])).toEqual([
+      ["customer", "M7"],
+      ["ai", "Hi! Which tour are you thinking of?"],
+    ]);
+    expect((await db.select().from(webhookEvents))[0]).toMatchObject({ status: "done", attempts: 2 });
+  });
+
+  it("sends replies an earlier attempt stored but never sent, and runs no new turn", async () => {
+    const model = scriptedModel([{ text: "unused" }]);
+    const { kapso, handle } = handler(model);
+    const { conversation } = await interrupted(handle, "wamid.q", "How much is the Sylhet tour?");
+    await appendMessage(db, {
+      conversationId: conversation.id,
+      channel: "whatsapp",
+      direction: "outbound",
+      sentBy: "ai",
+      body: "Which date works for you?",
+      payload: { kind: "text", text: "Which date works for you?" },
+    });
+
+    await drain(db, CUSTOMER, handle, { retryBaseMs: 50 });
+
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual(["Which date works for you?"]);
+    expect((await stored()).at(-1)).toMatchObject({ deliveryStatus: "sent", externalId: "wamid.fake-1" });
+  });
+
+  it("sends nothing again for a message that was answered", async () => {
+    const { kapso, model, handle, post } = setup([{ text: "Hello there." }]);
+    await post(received("message-received-text"));
+    await db.update(webhookEvents).set({ status: "pending" });
+
+    await drain(db, CUSTOMER, handle);
+
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(kapso.sends).toHaveLength(1);
+  });
+
+  it("stays quiet for a message a person now owns", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const model = scriptedModel([{ text: "unused" }]);
+    const { kapso, handle } = handler(model);
+    const { conversation } = await interrupted(handle, "wamid.p", "are you there?");
+    await transition(db, { conversationId: conversation.id, event: "customer_requested" });
+
+    await drain(db, CUSTOMER, handle);
+
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(kapso.sends).toHaveLength(0);
+  });
+
+  it("stays quiet for a contact who was already told about the limit", async () => {
+    const model = scriptedModel([{ text: "unused" }]);
+    const { kapso, handle } = handler(model);
+    const { conversation } = await interrupted(handle, "wamid.l", "msg 30");
+    const now = Date.now();
+    await db.insert(turns).values(Array.from({ length: 20 }, (_, i) => ({ contactId: conversation.contactId, conversationId: conversation.id, createdAt: new Date(now - (i + 2) * 60_000) })));
+    await db.update(contacts).set({ limitNotifiedAt: new Date(now - 60_000) });
+
+    await drain(db, CUSTOMER, handle);
+
+    expect(model.doGenerateCalls).toHaveLength(0);
+    expect(kapso.sends).toHaveLength(0);
   });
 });
 
