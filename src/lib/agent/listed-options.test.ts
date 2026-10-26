@@ -47,4 +47,11 @@ describe("dropOptionIds", () => {
     expect(dropOptionIds("You picked Sun 8 Nov (picked option id: sundarbans:2026-11-08).")).toBe("You picked Sun 8 Nov.");
     expect(dropOptionIds("The tour (3 days) leaves Friday.")).toBe("The tour (3 days) leaves Friday.");
   });
+
+  it("writes a bare departure id as its date, as seen in a live run", () => {
+    expect(dropOptionIds("Please let me know which departure you'd like (e.g., **sundarbans:2026-10-29**).")).toBe(
+      "Please let me know which departure you'd like (e.g., **Thu 29 Oct**).",
+    );
+    expect(dropOptionIds("Meet at 7:00 on 2026-10-29.")).toBe("Meet at 7:00 on 2026-10-29.");
+  });
 });
