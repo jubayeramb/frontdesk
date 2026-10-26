@@ -16,4 +16,4 @@
 ## 4. Real model
 
 - [x] 4.1 Replay quote, dates and "M2" three times on the real model, and verify no run books; then tap a date in the terminal chat and verify it books
-- [x] 4.2 On the phone, send meaningless text after the departures and verify no booking and the departures offered again (sent "L99"); booking from a tap on the phone is rechecked in the production run-through
+- [x] 4.2 On the phone, send meaningless text after the departures and verify no booking and the departures offered again (sent "L99"), then tap a date and verify the booking
