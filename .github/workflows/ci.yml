@@ -49,3 +49,24 @@ jobs:
       - run: pnpm spec:validate
         env:
           OPENSPEC_TELEMETRY: "0"
+
+  # Migrates production after the checks pass on main. Vercel promotes a
+  # production deployment only once this job is green (Deployment Checks).
+  migrate:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: migrate-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
