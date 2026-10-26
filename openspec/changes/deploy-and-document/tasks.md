@@ -7,6 +7,7 @@
 - [x] 1.3 Create the Vercel project with every env var in `src/env-schema.ts`, deploy, and verify `/` loads on the Vercel URL
 - [x] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it
 - [x] 1.5 Create the production Kapso webhook and inbox embed for the production origin, set their secrets, redeploy, and verify Kapso's test delivery returns 200 and `/staff` loads the inbox
+- [ ] 1.6 Add Vercel Web Analytics to the root layout, say so in the footer's privacy note, and verify page views show up after a production deploy
 
 ## 2. Real-phone checklist on production
 

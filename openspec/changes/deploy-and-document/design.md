@@ -15,6 +15,7 @@ Those notes are the only source for "What tripped me up on Kapso".
 - Preview deployments with their own databases.
   One production branch is enough.
 - A custom analytics setup.
+  Vercel Web Analytics counts page views with no cookies, which is enough to see whether shared links get opened.
 
 ## Decisions
 
