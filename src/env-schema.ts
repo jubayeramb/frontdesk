@@ -35,8 +35,20 @@ export const serverSchema = z.object({
 
 export type Env = z.infer<typeof serverSchema>;
 
+// What the migrate and seed scripts need, so the CI job that migrates
+// production holds the database URL and nothing else.
+export const databaseSchema = serverSchema.pick({ DATABASE_URL: true, DATABASE_WS_PROXY: true });
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = serverSchema.safeParse(source);
+  return parse(serverSchema, source);
+}
+
+export function parseDatabaseEnv(source: Record<string, string | undefined>): z.infer<typeof databaseSchema> {
+  return parse(databaseSchema, source);
+}
+
+function parse<T extends z.ZodType>(schema: T, source: Record<string, string | undefined>): z.infer<T> {
+  const result = schema.safeParse(source);
   if (!result.success) {
     const issues = result.error.issues
       .map((issue) => `  ${issue.path.join(".")}: ${issue.message}`)
