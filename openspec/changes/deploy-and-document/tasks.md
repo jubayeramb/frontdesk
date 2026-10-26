@@ -20,9 +20,9 @@
 
 ## 3. Write-up
 
-- [ ] 3.1 Draw the architecture SVG and verify it reads in light and dark
-- [ ] 3.2 Collect every surprise from the archived designs into "What tripped me up on Kapso", and verify each item traces to a note
-- [ ] 3.3 Build `/how-it-works` and verify the project-writeup scenarios with Playwright
+- [x] 3.1 Draw the architecture SVG and verify it reads in light and dark
+- [x] 3.2 Collect every surprise from the archived designs into "What tripped me up on Kapso", and verify each item traces to a note
+- [x] 3.3 Build `/how-it-works` and verify the project-writeup scenarios with Playwright
 - [ ] 3.4 Rewrite the README (what it is, GIF, diagram, run locally, what works, what is stubbed, what is next, and why a Bangladesh agency uses a US +1 number) in the voice guide's style, and verify every command in it runs
 - [ ] 3.5 Record the GIF and the 30 to 60 second video, and verify no real phone number is visible
 
