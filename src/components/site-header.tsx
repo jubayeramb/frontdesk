@@ -9,11 +9,11 @@ export function SiteHeader() {
         Demo business. No real bookings.
       </p>
       <header className="border-b">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <Link href="/" className="font-semibold whitespace-nowrap">
             Triplone Tours
           </Link>
-          <nav aria-label="Main" className="flex items-center gap-4 text-sm sm:gap-5">
+          <nav aria-label="Main" className="flex items-center gap-4 text-sm whitespace-nowrap sm:gap-5">
             {/* A plain link, so on / it fires hashchange; Link changes the hash without the event. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/#chat" className="text-muted-foreground hover:text-foreground">
@@ -21,6 +21,9 @@ export function SiteHeader() {
             </a>
             <Link href="/c" className="text-muted-foreground hover:text-foreground">
               Conversation
+            </Link>
+            <Link href="/how-it-works" className="text-muted-foreground hover:text-foreground">
+              How it works
             </Link>
             <Link href="/staff" className="text-muted-foreground hover:text-foreground">
               Staff

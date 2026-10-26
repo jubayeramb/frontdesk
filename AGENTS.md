@@ -112,6 +112,7 @@ Kapso keeps its own copy of WhatsApp messages, outside this job.
 
 Production runs on Vercel (team `jubayer-al-mamuns-projects`, project `frontdesk`, region `iad1`) against the Neon project's default branch, `production`.
 The `dev` branch is for local work only.
+Production answers on the Triplone number through its own Kapso webhook and inbox embed, both for `https://frontdesk.jubayeramb.com`; local development uses Kapso's sandbox number, so the two never answer the same message.
 
 - CI's `migrate` job runs `pnpm db:migrate` on every push to `main` once the checks pass, with the `PRODUCTION_DATABASE_URL` repository secret.
   It needs nothing else: `migrate.ts` and `seed.ts` only read the database variables.

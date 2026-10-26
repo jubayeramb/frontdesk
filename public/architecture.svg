@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 692" width="440" height="692" role="img" aria-labelledby="title desc">
+  <title id="title">How Front Desk works</title>
+  <desc id="desc">Web chat posts to the app, and WhatsApp messages arrive as signed Kapso webhooks that are stored once and drained in order. Both pass the guards into one agent core, which reads prices and departures from Postgres through tools. Every reply is stored and checked against the 24-hour window, then rendered by the web or WhatsApp adapter. WhatsApp replies go out through Kapso, and staff can also reply from Kapso's inbox embedded at /staff.</desc>
+  <style>
+    svg { --bg: #ffffff; --box: #f6f5f2; --core: #e8f3ee; --line: #c9c5bb; --core-line: #3b8a68; --text: #1d1c1a; --muted: #5f5b53; --arrow: #77736a; }
+    @media (prefers-color-scheme: dark) {
+      svg { --bg: #121212; --box: #1f1f1d; --core: #16271f; --line: #3a3833; --core-line: #5fb68f; --text: #ecebe6; --muted: #aaa69c; --arrow: #8d8980; }
+    }
+    .bg { fill: var(--bg); }
+    .box { fill: var(--box); stroke: var(--line); stroke-width: 1; }
+    .core { fill: var(--core); stroke: var(--core-line); stroke-width: 1.5; }
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text); }
+    .title { font-size: 14px; font-weight: 600; }
+    .sub { font-size: 12.5px; fill: var(--muted); }
+    .label { font-size: 11.5px; fill: var(--muted); }
+    .arrow { stroke: var(--arrow); stroke-width: 1.5; fill: none; }
+    .head { fill: var(--arrow); }
+  </style>
+  <defs>
+    <marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="head" d="M0 0 L10 5 L0 10 z" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="440" height="692" rx="12" />
+
+  <!-- Customers -->
+  <rect class="box" x="10" y="10" width="200" height="56" rx="8" />
+  <text class="title" x="110" y="34" text-anchor="middle">Web chat</text>
+  <text class="sub" x="110" y="52" text-anchor="middle">on the site</text>
+
+  <rect class="box" x="230" y="10" width="200" height="56" rx="8" />
+  <text class="title" x="330" y="34" text-anchor="middle">WhatsApp</text>
+  <text class="sub" x="330" y="52" text-anchor="middle">through Kapso</text>
+
+  <!-- Web chat straight to the guards -->
+  <line class="arrow" x1="110" y1="66" x2="110" y2="194" marker-end="url(#head)" />
+  <text class="label" x="118" y="134">POST /api/chat</text>
+
+  <!-- Webhook route -->
+  <line class="arrow" x1="330" y1="66" x2="330" y2="98" marker-end="url(#head)" />
+  <text class="label" x="338" y="87">signed event</text>
+  <rect class="box" x="230" y="100" width="200" height="64" rx="8" />
+  <text class="title" x="330" y="122" text-anchor="middle">Webhook route</text>
+  <text class="sub" x="330" y="139" text-anchor="middle">verify, store once, reply 200,</text>
+  <text class="sub" x="330" y="155" text-anchor="middle">drain each customer in order</text>
+  <line class="arrow" x1="330" y1="164" x2="330" y2="194" marker-end="url(#head)" />
+
+  <!-- Guards -->
+  <rect class="box" x="10" y="196" width="420" height="50" rx="8" />
+  <text class="title" x="220" y="217" text-anchor="middle">Guards</text>
+  <text class="sub" x="220" y="235" text-anchor="middle">who owns it, message type, daily and hourly limits</text>
+  <line class="arrow" x1="135" y1="246" x2="135" y2="278" marker-end="url(#head)" />
+
+  <!-- Agent core and database -->
+  <rect class="core" x="10" y="280" width="250" height="72" rx="8" />
+  <text class="title" x="135" y="304" text-anchor="middle">Agent core</text>
+  <text class="sub" x="135" y="322" text-anchor="middle">gpt-oss-120b on Groq,</text>
+  <text class="sub" x="135" y="339" text-anchor="middle">falls back to gpt-oss-20b</text>
+
+  <line class="arrow" x1="262" y1="316" x2="294" y2="316" marker-start="url(#head)" marker-end="url(#head)" />
+  <text class="label" x="278" y="306" text-anchor="middle">tools</text>
+
+  <rect class="box" x="296" y="280" width="134" height="72" rx="8" />
+  <text class="title" x="363" y="304" text-anchor="middle">Postgres</text>
+  <text class="sub" x="363" y="322" text-anchor="middle">prices, departures,</text>
+  <text class="sub" x="363" y="339" text-anchor="middle">bookings, owner</text>
+
+  <line class="arrow" x1="135" y1="352" x2="135" y2="384" marker-end="url(#head)" />
+
+  <!-- Delivery -->
+  <rect class="box" x="10" y="386" width="420" height="50" rx="8" />
+  <text class="title" x="220" y="407" text-anchor="middle">deliverTurn</text>
+  <text class="sub" x="220" y="425" text-anchor="middle">store each send first, check the 24-hour window</text>
+  <line class="arrow" x1="110" y1="436" x2="110" y2="468" marker-end="url(#head)" />
+  <line class="arrow" x1="330" y1="436" x2="330" y2="468" marker-end="url(#head)" />
+
+  <!-- Adapters -->
+  <rect class="box" x="10" y="470" width="200" height="64" rx="8" />
+  <text class="title" x="110" y="493" text-anchor="middle">Web adapter</text>
+  <text class="sub" x="110" y="511" text-anchor="middle">buttons and markdown,</text>
+  <text class="sub" x="110" y="527" text-anchor="middle">back to the browser</text>
+
+  <rect class="box" x="230" y="470" width="200" height="64" rx="8" />
+  <text class="title" x="330" y="493" text-anchor="middle">WhatsApp adapter</text>
+  <text class="sub" x="330" y="511" text-anchor="middle">reply buttons, lists,</text>
+  <text class="sub" x="330" y="527" text-anchor="middle">plain text</text>
+  <line class="arrow" x1="330" y1="534" x2="330" y2="566" marker-end="url(#head)" />
+
+  <!-- Outbound and staff -->
+  <rect class="box" x="10" y="568" width="170" height="64" rx="8" />
+  <text class="title" x="95" y="591" text-anchor="middle">Staff at /staff</text>
+  <text class="sub" x="95" y="609" text-anchor="middle">Kapso's inbox,</text>
+  <text class="sub" x="95" y="625" text-anchor="middle">embedded</text>
+
+  <line class="arrow" x1="180" y1="600" x2="228" y2="600" marker-end="url(#head)" />
+  <text class="label" x="204" y="590" text-anchor="middle">replies</text>
+
+  <rect class="box" x="230" y="568" width="200" height="64" rx="8" />
+  <text class="title" x="330" y="591" text-anchor="middle">Kapso</text>
+  <text class="sub" x="330" y="609" text-anchor="middle">sends it to the</text>
+  <text class="sub" x="330" y="625" text-anchor="middle">customer's phone</text>
+
+  <text class="label" x="220" y="660" text-anchor="middle">A message the app never sent means a person replied,</text>
+  <text class="label" x="220" y="677" text-anchor="middle">so the agent stays quiet until it's handed back.</text>
+</svg>

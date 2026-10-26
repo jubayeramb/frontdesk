@@ -3,10 +3,11 @@
 ## 1. Deploy
 
 - [x] 1.1 Use Neon's default branch for production (it has no TTL, unlike the `dev` branch), run migrations and seed against it, and verify the pricing tables hold the defaults
-- [ ] 1.2 Add a GitHub Actions job that runs migrations on `main` with the production URL as a secret, and verify it runs green on a no-op migration
-- [ ] 1.3 Create the Vercel project with every env var in `src/env-schema.ts`, deploy, and verify `/` loads on the Vercel URL
-- [ ] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it
-- [ ] 1.5 Create the production Kapso webhook and inbox embed for the production origin, set their secrets, redeploy, and verify Kapso's test delivery returns 200 and `/staff` loads the inbox
+- [x] 1.2 Add a GitHub Actions job that runs migrations on `main` with the production URL as a secret, and verify it runs green on a no-op migration
+- [x] 1.3 Create the Vercel project with every env var in `src/env-schema.ts`, deploy, and verify `/` loads on the Vercel URL
+- [x] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it
+- [x] 1.5 Create the production Kapso webhook and inbox embed for the production origin, set their secrets, redeploy, and verify Kapso's test delivery returns 200 and `/staff` loads the inbox
+- [ ] 1.6 Add Vercel Web Analytics to the root layout, say so in the footer's privacy note, and verify page views show up after a production deploy
 
 ## 2. Real-phone checklist on production
 
@@ -20,9 +21,9 @@
 
 ## 3. Write-up
 
-- [ ] 3.1 Draw the architecture SVG and verify it reads in light and dark
-- [ ] 3.2 Collect every surprise from the archived designs into "What tripped me up on Kapso", and verify each item traces to a note
-- [ ] 3.3 Build `/how-it-works` and verify the project-writeup scenarios with Playwright
+- [x] 3.1 Draw the architecture SVG and verify it reads in light and dark
+- [x] 3.2 Collect every surprise from the archived designs into "What tripped me up on Kapso", and verify each item traces to a note
+- [x] 3.3 Build `/how-it-works` and verify the project-writeup scenarios with Playwright
 - [ ] 3.4 Rewrite the README (what it is, GIF, diagram, run locally, what works, what is stubbed, what is next, and why a Bangladesh agency uses a US +1 number) in the voice guide's style, and verify every command in it runs
 - [ ] 3.5 Record the GIF and the 30 to 60 second video, and verify no real phone number is visible
 
