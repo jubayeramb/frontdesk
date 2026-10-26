@@ -2,7 +2,7 @@
 
 ## 1. Deploy
 
-- [ ] 1.1 Use Neon's default branch for production (it has no TTL, unlike the `dev` branch), run migrations and seed against it, and verify the pricing tables hold the defaults
+- [x] 1.1 Use Neon's default branch for production (it has no TTL, unlike the `dev` branch), run migrations and seed against it, and verify the pricing tables hold the defaults
 - [ ] 1.2 Add a GitHub Actions job that runs migrations on `main` with the production URL as a secret, and verify it runs green on a no-op migration
 - [ ] 1.3 Create the Vercel project with every env var in `src/env-schema.ts`, deploy, and verify `/` loads on the Vercel URL
 - [ ] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it

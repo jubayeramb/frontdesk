@@ -108,6 +108,18 @@ It deletes conversations with no activity for 7 days, with their messages, booki
 To run it by hand: `curl -H "Authorization: Bearer $CRON_SECRET" <url>/api/cron/retention`.
 Kapso keeps its own copy of WhatsApp messages, outside this job.
 
+### Production
+
+Production runs on Vercel (team `jubayer-al-mamuns-projects`, project `frontdesk`, region `iad1`) against the Neon project's default branch, `production`.
+The `dev` branch is for local work only.
+
+- CI's `migrate` job runs `pnpm db:migrate` on every push to `main` once the checks pass, with the `PRODUCTION_DATABASE_URL` repository secret.
+  It needs nothing else: `migrate.ts` and `seed.ts` only read the database variables.
+- Vercel promotes a production deployment only after that job is green (Deployment Checks), so new code never meets an old schema.
+- Production env vars live in Vercel only.
+  `.env.production.local` (git-ignored) holds them locally, and `scripts/push-prod-env.sh` pushes them without printing values.
+- Seed production by hand once: `DATABASE_URL=<production url> pnpm db:seed`.
+
 ### Next.js 16 notes
 
 - `cacheComponents` is on. Anything that reads cookies, search params or the session goes in a component inside `<Suspense>`; the page and layout around it stay static.
