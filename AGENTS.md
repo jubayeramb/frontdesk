@@ -127,8 +127,9 @@ Kapso keeps its own copy of WhatsApp messages, outside this job.
 - **Guards run before the model.** `checkGuards` is the only place that decides whether a turn runs, and refused turns never count toward a limit.
 - **The agent stays scoped to Triplone Tours.** It refuses unrelated requests.
 - **Tools do the math.** Tools take raw inputs (tour, travelers, departure id) and compute totals in code. The model never adds or multiplies.
+- **A booking needs the customer's own pick.** `bookDeparture` books only a departure the customer tapped, chose by number, or named by day and month in their latest message. The model's reading of anything else books nothing and offers the departures again.
 - **A price guard checks every reply.** Any currency amount that no tool returned this turn, and that isn't the stored quote or booking, replaces the reply with one built from the quote.
-- **Model failover is in code.** `withFallback` moves from `openai/gpt-oss-120b` to `openai/gpt-oss-20b` on a 429, 5xx or network error, or when Groq could not parse the model's own output, with SDK retries off. If both fail, the customer gets the busy reply.
+- **Model failover is in code.** `withFallback` moves from `openai/gpt-oss-120b` to `openai/gpt-oss-20b` on a 429, 5xx or network error, or when Groq could not parse the model's own output, with SDK retries off. Every call runs at temperature 0.2. If both fail, the customer gets the busy reply.
 - **The model sees 20 messages.** Older context lives in the conversation's `state` (latest quote and booking), which goes into the system prompt.
 - **The business side stays minimal.** Tours, a per-person price in BDT, departures and bookings. Spend effort on the Kapso and agent parts, not on tour operations.
 

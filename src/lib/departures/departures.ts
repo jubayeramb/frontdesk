@@ -70,3 +70,22 @@ function dhakaMidnightUtc(now: Date): number {
   const local = now.getTime() + DHAKA_OFFSET_MS;
   return local - (local % DAY_MS) - DHAKA_OFFSET_MS;
 }
+
+const MONTH = "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
+const DAY = "(\\d{1,2})(?:st|nd|rd|th)?";
+const DAY_FIRST = new RegExp(`\\b${DAY}(?:\\s+of)?[\\s-]+${MONTH}\\b`, "g");
+const MONTH_FIRST = new RegExp(`\\b${MONTH}[\\s-]+${DAY}\\b`, "g");
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+// Whether text names the departure's date: its day next to its month, either
+// way round ("1 Nov", "Nov 1st", "the 1st of November"). A weekday alone does
+// not, since two departures in the window can share one.
+export function namesDepartureDate(text: string, departsOn: string): boolean {
+  const [, month, day] = departsOn.split("-").map(Number);
+  const lower = text.toLowerCase();
+  const dates = [
+    ...[...lower.matchAll(DAY_FIRST)].map((m) => [m[1]!, m[2]!]),
+    ...[...lower.matchAll(MONTH_FIRST)].map((m) => [m[2]!, m[1]!]),
+  ];
+  return dates.some(([d, m]) => Number(d) === day && MONTHS.indexOf(m!.slice(0, 3)) + 1 === month);
+}

@@ -6,7 +6,7 @@ import type { Db } from "@/db/client";
 import { tours, type Channel } from "@/db/schema";
 import { getConversation, updateState } from "@/lib/conversations/store";
 import { bookDeparture } from "@/lib/departures/book";
-import { departureLabel, listDepartures } from "@/lib/departures/departures";
+import { departureLabel, listDepartures, namesDepartureDate, parseDepartureId } from "@/lib/departures/departures";
 import { formatBdt } from "@/lib/pricing/format";
 import { getPriceList } from "@/lib/pricing/price-list";
 import { computeQuote, matchTour, type Quote } from "@/lib/pricing/quote";
@@ -21,6 +21,8 @@ export type TurnContext = {
   channel?: Channel;
   // The number a web visitor is sent to for a person, digits only.
   whatsappNumber?: string;
+  // The customer's latest message. A booking needs it to pick the departure.
+  latest?: { text: string; choiceId?: string };
 };
 
 // Everything the tools learned this turn. The presenter and the price guard
@@ -110,6 +112,14 @@ export function createTurnTools(ctx: TurnContext) {
         const quote = (await getConversation(ctx.db, ctx.conversationId))?.state.quote;
         if (!quote) {
           return { ok: false as const, error: "There is no quote yet. Get a quote before booking." };
+        }
+        if (!pickedDeparture(ctx.latest, departureId)) {
+          const current = await offerDepartures(ctx, record, quote.tour.slug);
+          return {
+            ok: false as const,
+            error: "The customer has not picked this departure. Ask them to pick one of the current departures.",
+            currentDepartures: current,
+          };
         }
         const result = await bookDeparture(ctx.db, {
           conversationId: ctx.conversationId,
@@ -233,6 +243,16 @@ function guarded<I, O>(name: string, execute: (input: I) => Promise<O>) {
       return TOOL_FAILED;
     }
   };
+}
+
+// A booking needs the customer's own pick: the departure's option, tapped or
+// chosen by number, or its date in their words. The model's reading of
+// anything else ("M2", "yes") books nothing.
+function pickedDeparture(latest: TurnContext["latest"], id: string): boolean {
+  if (!latest) return false;
+  if (latest.choiceId !== undefined) return latest.choiceId === id;
+  const departure = parseDepartureId(id);
+  return departure !== null && namesDepartureDate(latest.text, departure.departsOn);
 }
 
 export async function offerDepartures(ctx: TurnContext, record: TurnRecord, tourSlug: string) {

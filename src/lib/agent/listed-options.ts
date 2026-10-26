@@ -1,3 +1,4 @@
+import { departureLabel } from "@/lib/departures/departures";
 import type { ChoiceOption } from "./replies";
 
 const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+(.*?)\s*$/;
@@ -22,9 +23,12 @@ export function dropListedOptions(text: string, options: ChoiceOption[]): string
 }
 
 // The model sees option ids in its history as "(id: …)" and sometimes copies
-// them into a reply. A customer never needs an id.
+// them into a reply, with or without the brackets. A customer never needs an
+// id, so a bare departure id becomes the departure's label.
 export function dropOptionIds(text: string): string {
-  return text.replace(/\s*\((?:picked )?(?:option )?id:[^)]*\)/gi, "");
+  return text
+    .replace(/\s*\((?:picked )?(?:option )?id:[^)]*\)/gi, "")
+    .replace(/\b[a-z0-9-]+:(\d{4}-\d{2}-\d{2})\b/g, (_, departsOn: string) => departureLabel(departsOn));
 }
 
 function normalize(label: string): string {
