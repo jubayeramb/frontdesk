@@ -3,10 +3,10 @@
 ## 1. Deploy
 
 - [x] 1.1 Use Neon's default branch for production (it has no TTL, unlike the `dev` branch), run migrations and seed against it, and verify the pricing tables hold the defaults
-- [ ] 1.2 Add a GitHub Actions job that runs migrations on `main` with the production URL as a secret, and verify it runs green on a no-op migration
-- [ ] 1.3 Create the Vercel project with every env var in `src/env-schema.ts`, deploy, and verify `/` loads on the Vercel URL
-- [ ] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it
-- [ ] 1.5 Create the production Kapso webhook and inbox embed for the production origin, set their secrets, redeploy, and verify Kapso's test delivery returns 200 and `/staff` loads the inbox
+- [x] 1.2 Add a GitHub Actions job that runs migrations on `main` with the production URL as a secret, and verify it runs green on a no-op migration
+- [x] 1.3 Create the Vercel project with every env var in `src/env-schema.ts`, deploy, and verify `/` loads on the Vercel URL
+- [x] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it
+- [x] 1.5 Create the production Kapso webhook and inbox embed for the production origin, set their secrets, redeploy, and verify Kapso's test delivery returns 200 and `/staff` loads the inbox
 
 ## 2. Real-phone checklist on production
 
