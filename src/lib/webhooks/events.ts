@@ -1,4 +1,5 @@
 import { and, asc, eq, gt, lt, sql, type SQL } from "drizzle-orm";
+import { z } from "zod";
 
 import type { Db } from "@/db/client";
 import { webhookEvents, type WebhookEvent } from "@/db/schema";
@@ -177,6 +178,11 @@ function describe(error: unknown): string {
   return text.slice(0, 500);
 }
 
+// The error's class, and for a payload that failed validation the fields and
+// what was wrong with them: names only, never the values.
 function errorClass(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return `ZodError at ${error.issues.map((i) => `${i.path.join(".") || "(root)"} (${i.code})`).join(", ")}`;
+  }
   return error instanceof Error ? error.name : typeof error;
 }

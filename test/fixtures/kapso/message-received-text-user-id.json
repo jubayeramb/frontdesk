@@ -6,7 +6,7 @@
     "x-webhook-event": "whatsapp.message.received",
     "x-webhook-payload-version": "v2",
     "x-idempotency-key": "f1a4c18d1f8c8be8d980aab37fd27095d6655b4c05897e7700eade99d229c5f4",
-    "x-webhook-signature": "08e2e398a121456fa18f3d135453a876dadd25878f7b7de71ee83314de26896f"
+    "x-webhook-signature": "ff871f813e3cf567f8122f86215c1b877fdf43b041af5f3373454300e4ec7f99"
   },
-  "body": "{\"message\":{\"id\":\"wamid.HBgTQkQuMTAwMDAwMDAwMDAwMDAwMhUUABIYFDY5REYwOTVCM0FGNTcxNzREQzUwAA==\",\"text\":{\"body\":\"Hi\"},\"type\":\"text\",\"timestamp\":\"1793131770\"},\"conversation\":{\"id\":\"6f0d3c1e-2b8a-4c55-9e57-3a1f0b9d7c42\",\"status\":\"active\",\"username\":\"testcustomer2\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000002\"},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+  "body": "{\"message\":{\"id\":\"wamid.HBgTQkQuMTAwMDAwMDAwMDAwMDAwMhUUABIYFDY5REYwOTVCM0FGNTcxNzREQzUwAA==\",\"from\":null,\"text\":{\"body\":\"Hi\"},\"type\":\"text\",\"context\":null,\"username\":\"testcustomer2\",\"timestamp\":\"1793131770\",\"from_user_id\":\"BD.1000000000000002\",\"from_parent_user_id\":null},\"conversation\":{\"id\":\"6f0d3c1e-2b8a-4c55-9e57-3a1f0b9d7c42\",\"status\":\"active\",\"username\":\"testcustomer2\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000002\"},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
 }
