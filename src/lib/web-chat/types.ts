@@ -18,7 +18,8 @@ export type ChatTurnResponse = { conversationId: string; replies: AgentReply[] }
 export type ChatTranscriptResponse = {
   conversationId: string | null;
   owner: Owner | null;
-  // "•••• 4821" once the conversation continued on WhatsApp.
+  // "WhatsApp •••• 4821" (or "WhatsApp" for a contact with no number) once
+  // the conversation continued on WhatsApp.
   whatsapp: string | null;
   messages: ChatMessage[];
 };

@@ -16,21 +16,21 @@ import type { ConversationState } from "./state";
 export const HISTORY_WINDOW = 20;
 
 // Finds the contact behind a channel identity (or creates both) and returns
-// their latest open conversation, starting one if they have none.
+// their latest open conversation, starting one if they have none. `otherIds`
+// are more ids for the same person on the channel, such as a WhatsApp user id
+// next to the number: the first one stored finds the contact, and every id is
+// attached to that contact, moved from another if it pointed elsewhere.
 export async function findOrCreateConversation(
   db: Db,
-  input: { channel: Channel; externalId: string; displayName?: string },
+  input: { channel: Channel; externalId: string; otherIds?: string[]; displayName?: string },
 ): Promise<Conversation> {
+  const ids = [input.externalId, ...(input.otherIds ?? [])];
   return db.transaction(async (tx) => {
-    let [identity] = await tx
+    const stored = await tx
       .select()
       .from(channelIdentities)
-      .where(
-        and(
-          eq(channelIdentities.channel, input.channel),
-          eq(channelIdentities.externalId, input.externalId),
-        ),
-      );
+      .where(and(eq(channelIdentities.channel, input.channel), inArray(channelIdentities.externalId, ids)));
+    let identity = ids.map((id) => stored.find((row) => row.externalId === id)).find((row) => row !== undefined);
     if (!identity) {
       // Insert-or-nothing on the identity, so two first messages at once still
       // end up with one contact.
@@ -58,6 +58,14 @@ export async function findOrCreateConversation(
     }
     const contactId = identity!.contactId;
 
+    for (const id of ids) {
+      if (stored.some((row) => row.externalId === id && row.contactId === contactId)) continue;
+      await tx
+        .insert(channelIdentities)
+        .values({ contactId, channel: input.channel, externalId: id })
+        .onConflictDoUpdate({ target: [channelIdentities.channel, channelIdentities.externalId], set: { contactId } });
+    }
+
     const [latest] = await tx
       .select()
       .from(conversations)
@@ -71,11 +79,14 @@ export async function findOrCreateConversation(
   });
 }
 
-// The latest open conversation behind a channel identity, without creating one.
+// The latest open conversation behind any of a person's channel ids, without
+// creating one.
 export async function findConversation(
   db: Db,
-  input: { channel: Channel; externalId: string },
+  input: { channel: Channel; externalId: string | string[] },
 ): Promise<Conversation | undefined> {
+  const ids = typeof input.externalId === "string" ? [input.externalId] : input.externalId;
+  if (ids.length === 0) return undefined;
   const [row] = await db
     .select({ conversation: conversations })
     .from(channelIdentities)
@@ -83,7 +94,7 @@ export async function findConversation(
     .where(
       and(
         eq(channelIdentities.channel, input.channel),
-        eq(channelIdentities.externalId, input.externalId),
+        inArray(channelIdentities.externalId, ids),
         isNull(conversations.closedAt),
       ),
     )

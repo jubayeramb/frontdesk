@@ -24,7 +24,7 @@ describe("linkWhatsApp", () => {
     await updateState(db, web.id, { quote });
     const code = await createLinkCode(db, web.id, now);
 
-    const result = await linkWhatsApp(db, { code, whatsappNumber: "8801700001234", displayName: "Rahim", now: minutes(5) });
+    const result = await linkWhatsApp(db, { code, whatsappId: "8801700001234", displayName: "Rahim", now: minutes(5) });
 
     expect(result).toEqual({ linked: true, conversationId: web.id });
     const continued = await findConversation(db, { channel: "whatsapp", externalId: "8801700001234" });
@@ -42,20 +42,20 @@ describe("linkWhatsApp", () => {
     const web = await newConversation(db, "web");
     const code = await createLinkCode(db, web.id, now);
 
-    expect(await linkWhatsApp(db, { code, whatsappNumber: "8801700001234", now: minutes(20) })).toEqual({ linked: false });
+    expect(await linkWhatsApp(db, { code, whatsappId: "8801700001234", now: minutes(20) })).toEqual({ linked: false });
     expect(await findConversation(db, { channel: "whatsapp", externalId: "8801700001234" })).toBeUndefined();
   });
 
   it("does nothing with a code that does not exist", async () => {
-    expect(await linkWhatsApp(db, { code: "TR-ZZZZZZ", whatsappNumber: "8801700001234", now })).toEqual({ linked: false });
+    expect(await linkWhatsApp(db, { code: "TR-ZZZZZZ", whatsappId: "8801700001234", now })).toEqual({ linked: false });
   });
 
   it("works once: a second number with the same code is not linked", async () => {
     const web = await newConversation(db, "web");
     const code = await createLinkCode(db, web.id, now);
 
-    expect(await linkWhatsApp(db, { code, whatsappNumber: "8801700001111", now: minutes(1) })).toMatchObject({ linked: true });
-    expect(await linkWhatsApp(db, { code, whatsappNumber: "8801700002222", now: minutes(2) })).toEqual({ linked: false });
+    expect(await linkWhatsApp(db, { code, whatsappId: "8801700001111", now: minutes(1) })).toMatchObject({ linked: true });
+    expect(await linkWhatsApp(db, { code, whatsappId: "8801700002222", now: minutes(2) })).toEqual({ linked: false });
     expect(await findConversation(db, { channel: "whatsapp", externalId: "8801700002222" })).toBeUndefined();
   });
 
@@ -63,8 +63,8 @@ describe("linkWhatsApp", () => {
     const web = await newConversation(db, "web");
     const code = await createLinkCode(db, web.id, now);
 
-    await linkWhatsApp(db, { code, whatsappNumber: "8801700006666", now: minutes(1) });
-    expect(await linkWhatsApp(db, { code, whatsappNumber: "8801700006666", now: minutes(2) })).toEqual({ linked: true, conversationId: web.id });
+    await linkWhatsApp(db, { code, whatsappId: "8801700006666", now: minutes(1) });
+    expect(await linkWhatsApp(db, { code, whatsappId: "8801700006666", now: minutes(2) })).toEqual({ linked: true, conversationId: web.id });
     const notes = await db.select().from(messages).where(eq(messages.conversationId, web.id));
     expect(notes).toHaveLength(1);
   });
@@ -74,8 +74,8 @@ describe("linkWhatsApp", () => {
     const code = await createLinkCode(db, web.id, now);
 
     const results = await Promise.all([
-      linkWhatsApp(db, { code, whatsappNumber: "8801700003333", now: minutes(1) }),
-      linkWhatsApp(db, { code, whatsappNumber: "8801700004444", now: minutes(1) }),
+      linkWhatsApp(db, { code, whatsappId: "8801700003333", now: minutes(1) }),
+      linkWhatsApp(db, { code, whatsappId: "8801700004444", now: minutes(1) }),
     ]);
 
     expect(results.filter((r) => r.linked)).toHaveLength(1);
@@ -88,7 +88,7 @@ describe("linkWhatsApp", () => {
     const web = await newConversation(db, "web");
     const code = await createLinkCode(db, web.id, now);
 
-    await linkWhatsApp(db, { code, whatsappNumber: "8801700005555", now: minutes(1) });
+    await linkWhatsApp(db, { code, whatsappId: "8801700005555", now: minutes(1) });
 
     expect((await getConversation(db, older.id))?.closedAt).toEqual(minutes(1));
     expect((await findConversation(db, { channel: "whatsapp", externalId: "8801700005555" }))?.id).toBe(web.id);

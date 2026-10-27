@@ -24,25 +24,30 @@ import type { Limits } from "@/lib/guards";
 import { findCode, linkWhatsApp } from "@/lib/linking";
 import { transition } from "@/lib/ownership";
 import type { EventHandler } from "./events";
-import type { KapsoEvent } from "./normalize";
+import { customerAddress, customerIds, customerOf, type KapsoEvent } from "./normalize";
+
+// Kapso sends a profile name when Meta has one; a customer known by user id
+// may only have a username.
+const contactSchema = z.object({ contact_name: z.string().nullish(), username: z.string().nullish() });
 
 const receivedSchema = z.object({
-  message: kapsoMessageSchema.extend({ from: z.string() }),
-  conversation: z.object({ id: z.string().optional(), contact_name: z.string().nullish() }).optional(),
+  message: kapsoMessageSchema,
+  conversation: contactSchema.extend({ id: z.string().optional() }).optional(),
 });
 
 const sentSchema = z.object({
   message: z.object({
     id: z.string(),
-    to: z.string(),
     type: z.string(),
     text: z.object({ body: z.string() }).optional(),
     kapso: z.object({ direction: z.string().optional(), content: z.string().optional() }).optional(),
   }),
-  conversation: z.object({ contact_name: z.string().nullish() }).optional(),
+  conversation: contactSchema.optional(),
 });
 
-const endedSchema = z.object({ conversation: z.object({ phone_number: z.string() }) });
+function nameOf(conversation: z.infer<typeof contactSchema> | undefined): string | undefined {
+  return conversation?.contact_name ?? conversation?.username ?? undefined;
+}
 
 // An unknown outbound message within this long of an agent send that has no id
 // yet may be that send's echo, so it is checked again.
@@ -75,7 +80,7 @@ export function createKapsoAcknowledger(deps: { db: Db; adapter: ChannelAdapter 
     const kind = classifyInbound(parsed.data.message);
     if (kind === "silent") return;
     // The message is read either way; only the agent says it is typing.
-    const conversation = await findConversation(deps.db, { channel: "whatsapp", externalId: event.partitionKey });
+    const conversation = await findConversation(deps.db, { channel: "whatsapp", externalId: customerIds(customerOf(event.payload)) });
     await deps.adapter.markRead(parsed.data.message.id, { typing: kind === "message" && conversation?.owner !== "human" });
   };
 }
@@ -95,21 +100,23 @@ export function createKapsoHandler(deps: {
 
   async function received(event: WebhookEvent) {
     const { message, conversation: kapso } = receivedSchema.parse(event.payload);
-    const customer = message.from.replace(/\D/g, "");
+    const customer = customerOf(event.payload);
+    const [id, ...otherIds] = customerIds(customer);
+    const to = customerAddress(customer);
     // A retry finishes what an earlier attempt started, and never answers twice.
     const stored = await findByExternalId(deps.db, message.id);
-    if (stored) return resume(stored, customer);
+    if (stored) return resume(stored, to);
 
-    const displayName = kapso?.contact_name ?? undefined;
-    // A link code first moves the number onto the web conversation, so the
+    const displayName = nameOf(kapso);
+    // A link code first moves the customer onto the web conversation, so the
     // lookup below finds that one.
     const code = findCode(mapInbound(message, null)?.text ?? "");
     let link: Inbound["link"];
     if (code) {
-      const result = await linkWhatsApp(deps.db, { code, whatsappNumber: customer, displayName, now: now() });
+      const result = await linkWhatsApp(deps.db, { code, whatsappId: id!, displayName, now: now() });
       link = result.linked ? "continued" : "rejected";
     }
-    const conversation = await findOrCreateConversation(deps.db, { channel: "whatsapp", externalId: customer, displayName });
+    const conversation = await findOrCreateConversation(deps.db, { channel: "whatsapp", externalId: id!, otherIds, displayName });
     const sentAt = message.timestamp ? new Date(Number(message.timestamp) * 1000) : now();
     await noteWhatsAppInbound(deps.db, conversation.id, { kapsoConversationId: kapso?.id, at: sentAt });
 
@@ -132,20 +139,20 @@ export function createKapsoHandler(deps: {
       models: deps.models,
       limits: deps.limits,
     });
-    await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to: customer, turn, now: now() });
+    await deliverTurn(deps.db, deps.adapter, { conversationId: conversation.id, to, turn, now: now() });
   }
 
   // What follows the stored message says how far the first attempt got: no
   // reply means the turn died before storing one, so it runs now for the
   // stored message; replies never attempted are sent; anything else finished.
   // The customer's later events wait behind this one, so none can follow yet.
-  async function resume(inbound: Message, customer: string) {
+  async function resume(inbound: Message, to: string) {
     const after = await repliesTo(deps.db, inbound);
     if (after.length > 0) {
       const unsent = after.filter((m) => m.sentBy === "ai" && m.deliveryStatus === null && !m.payload?.continues);
       if (unsent.length === 0) return;
       const turn = { replies: unsent.map((m) => m.payload as AgentReply), messageIds: unsent.map((m) => m.id) };
-      await deliverTurn(deps.db, deps.adapter, { conversationId: inbound.conversationId, to: customer, turn, now: now() });
+      await deliverTurn(deps.db, deps.adapter, { conversationId: inbound.conversationId, to, turn, now: now() });
       return;
     }
     if (!(await getConversation(deps.db, inbound.conversationId))) return;
@@ -160,7 +167,7 @@ export function createKapsoHandler(deps: {
       models: deps.models,
       limits: deps.limits,
     });
-    await deliverTurn(deps.db, deps.adapter, { conversationId: inbound.conversationId, to: customer, turn, now: now() });
+    await deliverTurn(deps.db, deps.adapter, { conversationId: inbound.conversationId, to, turn, now: now() });
   }
 
   // Kapso reports every outbound message, ours and the inbox's alike, with no
@@ -171,11 +178,12 @@ export function createKapsoHandler(deps: {
     if (message.kapso?.direction && message.kapso.direction !== "outbound") return;
     if (await findByExternalId(deps.db, message.id)) return;
 
-    const customer = message.to.replace(/\D/g, "");
+    const [id, ...otherIds] = customerIds(customerOf(event.payload));
     const conversation = await findOrCreateConversation(deps.db, {
       channel: "whatsapp",
-      externalId: customer,
-      displayName: kapso?.contact_name ?? undefined,
+      externalId: id!,
+      otherIds,
+      displayName: nameOf(kapso),
     });
     const since = new Date(now().getTime() - ECHO_WINDOW_MS);
     if (event.attempts <= ECHO_CHECKS && (await hasSendInFlight(deps.db, conversation.id, since))) {
@@ -199,8 +207,7 @@ export function createKapsoHandler(deps: {
   // Kapso ends a conversation from the inbox or after 24 hours of quiet; either
   // way the customer's next message goes to the agent.
   async function ended(event: WebhookEvent) {
-    const { conversation: kapso } = endedSchema.parse(event.payload);
-    const conversation = await findConversation(deps.db, { channel: "whatsapp", externalId: kapso.phone_number.replace(/\D/g, "") });
+    const conversation = await findConversation(deps.db, { channel: "whatsapp", externalId: customerIds(customerOf(event.payload)) });
     if (conversation) await transition(deps.db, { conversationId: conversation.id, event: "conversation_ended" });
   }
 

@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import type { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
-import { contacts, conversations, messages, turns, webhookEvents } from "@/db/schema";
+import { contacts, conversations, messages, tours, turns, webhookEvents } from "@/db/schema";
 import { seed } from "@/db/seed-data";
 import { createWhatsAppAdapter } from "@/lib/channels/whatsapp/adapter";
 import { setupTestDb } from "../../../test/int/db";
@@ -19,6 +19,8 @@ import { receiveKapsoWebhook } from "./receive";
 
 const db = setupTestDb();
 const CUSTOMER = "8801700000000";
+// The fixtures carry the customer's user id too, and events queue under it.
+const CUSTOMER_QUEUE = "BD.1000000000000001";
 
 function setup(script: ScriptStep[], opts: { echoWaitMs?: number } = {}) {
   const kapso = fakeKapso();
@@ -81,6 +83,9 @@ describe("whatsapp.message.received", () => {
 
   it("sends departures as a list and reads a tapped row back as that departure", async () => {
     await seed(db);
+    // Three days a week gives at least 5 departures in the 14-day window on any
+    // date, so the reply is always a list rather than buttons.
+    await db.update(tours).set({ departureWeekdays: [0, 2, 4] }).where(eq(tours.slug, "sundarbans"));
     const { kapso, model, post } = setup([
       { tools: [{ name: "listDepartures", input: { tourSlug: "sundarbans" } }] },
       { text: "Here are the next departures." },
@@ -119,7 +124,7 @@ describe("whatsapp.message.received", () => {
     await post(received("message-received-text"));
     await db.update(webhookEvents).set({ status: "pending" });
 
-    await drain(db, CUSTOMER, handle);
+    await drain(db, CUSTOMER_QUEUE, handle);
 
     expect(kapso.sends).toHaveLength(1);
   });
@@ -160,7 +165,7 @@ describe("whatsapp.message.received", () => {
     const { kapso, handle, post } = setup([{ text: "Hello there." }]);
     await post(received("message-received-text"));
     await db.update(webhookEvents).set({ status: "pending" });
-    await drain(db, CUSTOMER, handle);
+    await drain(db, CUSTOMER_QUEUE, handle);
     expect(kapso.receipts).toHaveLength(1);
   });
 
@@ -282,7 +287,7 @@ describe("retried message.received", () => {
     const { kapso, handle } = handler(model);
     await store(handle, text("wamid.m7", "M7"));
 
-    await drain(db, CUSTOMER, handle, { retryBaseMs: 50 });
+    await drain(db, CUSTOMER_QUEUE, handle, { retryBaseMs: 50 });
 
     expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual(["Hi! Which tour are you thinking of?"]);
     expect((await stored()).map((m) => [m.sentBy, m.body])).toEqual([
@@ -305,7 +310,7 @@ describe("retried message.received", () => {
       payload: { kind: "text", text: "Which date works for you?" },
     });
 
-    await drain(db, CUSTOMER, handle, { retryBaseMs: 50 });
+    await drain(db, CUSTOMER_QUEUE, handle, { retryBaseMs: 50 });
 
     expect(model.doGenerateCalls).toHaveLength(0);
     expect(kapso.sends.map((s) => (s.text as { body: string }).body)).toEqual(["Which date works for you?"]);
@@ -317,7 +322,7 @@ describe("retried message.received", () => {
     await post(received("message-received-text"));
     await db.update(webhookEvents).set({ status: "pending" });
 
-    await drain(db, CUSTOMER, handle);
+    await drain(db, CUSTOMER_QUEUE, handle);
 
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(kapso.sends).toHaveLength(1);
@@ -330,7 +335,7 @@ describe("retried message.received", () => {
     const { conversation } = await interrupted(handle, "wamid.p", "are you there?");
     await transition(db, { conversationId: conversation.id, event: "customer_requested" });
 
-    await drain(db, CUSTOMER, handle);
+    await drain(db, CUSTOMER_QUEUE, handle);
 
     expect(model.doGenerateCalls).toHaveLength(0);
     expect(kapso.sends).toHaveLength(0);
@@ -344,7 +349,7 @@ describe("retried message.received", () => {
     await db.insert(turns).values(Array.from({ length: 20 }, (_, i) => ({ contactId: conversation.contactId, conversationId: conversation.id, createdAt: new Date(now - (i + 2) * 60_000) })));
     await db.update(contacts).set({ limitNotifiedAt: new Date(now - 60_000) });
 
-    await drain(db, CUSTOMER, handle);
+    await drain(db, CUSTOMER_QUEUE, handle);
 
     expect(model.doGenerateCalls).toHaveLength(0);
     expect(kapso.sends).toHaveLength(0);
@@ -493,5 +498,86 @@ describe("link codes", () => {
 
     expect(prompt(model)).toContain("expired or was already used");
     expect((await stored()).filter((m) => m.conversationId === web.id)).toEqual([]);
+  });
+});
+
+describe("a customer Meta reports by user id only", () => {
+  const USER_ID = "BD.1000000000000002";
+  const userIdText = (id: string, body: string) =>
+    received("message-received-text-user-id", (b) => {
+      const message = b.message as { id: string; text: { body: string } };
+      message.id = id;
+      message.text.body = body;
+    });
+  // An outbound or conversation fixture with the phone number taken out.
+  const withoutPhone = (b: Record<string, unknown>) => {
+    const message = b.message as Record<string, unknown> | undefined;
+    if (message) for (const key of ["to", "to_user_id", "from"]) delete message[key];
+    const conversation = b.conversation as Record<string, unknown>;
+    delete conversation.phone_number;
+    conversation.business_scoped_user_id = USER_ID;
+  };
+
+  it("gets a reply sent to their user id, and is named by their username", async () => {
+    const { kapso, post } = setup([{ text: "Hi! Which tour are you thinking of?" }]);
+
+    expect((await post(userIdText("wamid.u1", "Hi"))).status).toBe(200);
+
+    expect(kapso.sends).toEqual([expect.objectContaining({ recipient: USER_ID, type: "text" })]);
+    expect(kapso.sends[0]).not.toHaveProperty("to");
+    expect((await stored()).map((m) => [m.sentBy, m.body])).toEqual([
+      ["customer", "Hi"],
+      ["ai", "Hi! Which tour are you thinking of?"],
+    ]);
+    expect((await db.select().from(contacts))[0]!.displayName).toBe("testcustomer2");
+  });
+
+  it("keeps the same conversation when the phone number stops coming", async () => {
+    const { kapso, post } = setup([{ text: "Hello!" }, { text: "Still here." }]);
+    await post(received("message-received-text"));
+
+    await post(
+      received("message-received-text-user-id", (b) => {
+        (b.conversation as { business_scoped_user_id: string }).business_scoped_user_id = "BD.1000000000000001";
+      }),
+    );
+
+    expect(await db.select().from(conversations)).toHaveLength(1);
+    expect(kapso.sends.map((s) => s.to ?? s.recipient)).toEqual([CUSTOMER, "BD.1000000000000001"]);
+  });
+
+  it("takes an inbox reply as a person taking over", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { kapso, post } = setup([{ text: "Hi!" }]);
+    await post(userIdText("wamid.u2", "Hi"));
+
+    await post(fixtureRequest("message-sent-inbox-reply", withoutPhone, { event: "whatsapp.message.sent" }));
+
+    expect(await db.select().from(conversations)).toEqual([expect.objectContaining({ owner: "human" })]);
+    await post(userIdText("wamid.u3", "hello?"));
+    expect(kapso.sends).toHaveLength(1);
+  });
+
+  it("is handed back to the agent when Kapso ends the conversation", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const { post } = setup([{ text: "Hi!" }]);
+    await post(userIdText("wamid.u4", "Hi"));
+    const [conversation] = await db.select().from(conversations);
+    await transition(db, { conversationId: conversation!.id, event: "human_replied" });
+
+    await post(fixtureRequest("conversation-ended", withoutPhone, { event: "whatsapp.conversation.ended" }));
+
+    expect((await db.select().from(conversations))[0]!.owner).toBe("ai");
+  });
+
+  it("continues a web conversation with a link code", async () => {
+    const web = await findOrCreateConversation(db, { channel: "web", externalId: "visitor-user-id" });
+    const code = await createLinkCode(db, web.id, new Date());
+    const { kapso, post } = setup([{ text: "Welcome back!" }]);
+
+    await post(userIdText("wamid.u5", `Hi! My code is ${code}`));
+
+    expect((await stored()).filter((m) => m.conversationId === web.id).map((m) => m.sentBy)).toEqual(["system", "customer", "ai"]);
+    expect(kapso.sends).toEqual([expect.objectContaining({ recipient: USER_ID })]);
   });
 });

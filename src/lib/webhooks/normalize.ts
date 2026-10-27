@@ -2,7 +2,8 @@
 export type KapsoEvent = {
   type: string;
   dedupeKey: string;
-  // The customer's WhatsApp number, digits only.
+  // The customer: their business-scoped user id if Kapso sent one, else their
+  // WhatsApp number, digits only.
   partitionKey: string;
   phoneNumberId: string | null;
   payload: Record<string, unknown>;
@@ -16,10 +17,34 @@ export type Normalized =
   | { kind: "invalid"; reason: string };
 
 type Payload = Record<string, unknown> & {
-  message?: { id?: unknown; from?: unknown; to?: unknown };
-  conversation?: { id?: unknown; phone_number?: unknown };
+  message?: { id?: unknown; from?: unknown; to?: unknown; from_user_id?: unknown; to_user_id?: unknown };
+  conversation?: { id?: unknown; phone_number?: unknown; business_scoped_user_id?: unknown };
   phone_number_id?: unknown;
 };
+
+// Who an event is about. Meta reports a customer who has a WhatsApp username
+// by a business-scoped user id ("BD.…") and may leave the phone number out.
+export type Customer = { phone?: string; userId?: string };
+
+export function customerOf(payload: Payload): Customer {
+  const phone = [payload.conversation?.phone_number, payload.message?.from, payload.message?.to]
+    .map((v) => (typeof v === "string" ? v.replace(/\D/g, "") : ""))
+    .find(Boolean);
+  const userId = [payload.conversation?.business_scoped_user_id, payload.message?.from_user_id, payload.message?.to_user_id].find(
+    (v): v is string => typeof v === "string" && v.length > 0,
+  );
+  return { ...(phone && { phone }), ...(userId && { userId }) };
+}
+
+// The ids a customer is stored under, the user id first.
+export function customerIds(customer: Customer): string[] {
+  return [customer.userId, customer.phone].filter((v): v is string => !!v);
+}
+
+// Where a reply goes: the number every earlier send used, else the user id.
+export function customerAddress(customer: Customer): string {
+  return customer.phone ?? customer.userId!;
+}
 
 // A buffered delivery is `{ type, batch: true, data: [...] }`; anything else is
 // a single event whose type is in the X-Webhook-Event header.
@@ -46,10 +71,9 @@ function toEvent(type: string, payload: Payload): KapsoEvent | null {
   // One idempotency header covers a whole batch, so each event is keyed by
   // what it is about: the message, or the conversation for conversation events.
   const subject = type.startsWith("whatsapp.conversation.") ? payload.conversation?.id : payload.message?.id;
-  const phone = payload.conversation?.phone_number ?? payload.message?.from ?? payload.message?.to;
-  if (typeof subject !== "string" || typeof phone !== "string") return null;
-  const partitionKey = phone.replace(/\D/g, "");
-  if (!partitionKey) return null;
+  // The user id first: it stays when Meta stops sending the phone number.
+  const [partitionKey] = customerIds(customerOf(payload));
+  if (typeof subject !== "string" || !partitionKey) return null;
   return {
     type,
     dedupeKey: `${type}:${subject}`,

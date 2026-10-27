@@ -1,0 +1,12 @@
+{
+  "description": "Inbound text from a customer Meta reports by business-scoped user id only: no message.from and no conversation.phone_number.",
+  "capturedAt": "2026-10-27T20:09:31.000Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.message.received",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "f1a4c18d1f8c8be8d980aab37fd27095d6655b4c05897e7700eade99d229c5f4",
+    "x-webhook-signature": "08e2e398a121456fa18f3d135453a876dadd25878f7b7de71ee83314de26896f"
+  },
+  "body": "{\"message\":{\"id\":\"wamid.HBgTQkQuMTAwMDAwMDAwMDAwMDAwMhUUABIYFDY5REYwOTVCM0FGNTcxNzREQzUwAA==\",\"text\":{\"body\":\"Hi\"},\"type\":\"text\",\"timestamp\":\"1793131770\"},\"conversation\":{\"id\":\"6f0d3c1e-2b8a-4c55-9e57-3a1f0b9d7c42\",\"status\":\"active\",\"username\":\"testcustomer2\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000002\"},\"phone_number_id\":\"1382322134966757\",\"is_new_conversation\":false}"
+}

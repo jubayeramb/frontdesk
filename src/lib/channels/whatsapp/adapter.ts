@@ -17,8 +17,11 @@ export function createWhatsAppAdapter(config: {
   const phoneNumberId = config.phoneNumberId;
 
   async function sendOne(to: string, message: OutboundMessage, nonce: string) {
-    // Echoed back on status webhooks, so our sends can be matched by nonce too.
-    const common = { phoneNumberId, to, bizOpaqueCallbackData: nonce };
+    // A phone number goes in `to`; a business-scoped user id ("BD.…"), for a
+    // customer Meta reports without a number, goes in `recipient`. The nonce is
+    // echoed back on status webhooks, so our sends can be matched by it too.
+    const address = /^\d+$/.test(to) ? { to } : { recipient: to };
+    const common = { phoneNumberId, ...address, bizOpaqueCallbackData: nonce };
     switch (message.type) {
       case "text":
         return client.messages.sendText({ ...common, body: message.text });

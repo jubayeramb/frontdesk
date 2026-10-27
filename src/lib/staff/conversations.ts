@@ -4,7 +4,7 @@ import type { Db } from "@/db/client";
 
 export type HandedOver = {
   id: string;
-  // The WhatsApp name if Kapso sent one, else the last 4 digits.
+  // The WhatsApp name if Kapso sent one, else the number's last 4 digits.
   who: string;
   since: Date;
   // Why a person has it, from the ownership note: "the customer asked to cancel a booking".
@@ -38,7 +38,9 @@ export async function listHandedOver(db: Db, limit = 50): Promise<HandedOver[]> 
     join contacts ct on ct.id = c.contact_id
     left join lateral (
       select external_id from channel_identities
-      where contact_id = c.contact_id and channel = 'whatsapp' limit 1
+      where contact_id = c.contact_id and channel = 'whatsapp'
+      -- A phone number before a user id, which is never shown.
+      order by external_id ~ '^[0-9]+$' desc limit 1
     ) wa on true
     left join lateral (
       select payload ->> 'because' as because from messages
@@ -57,7 +59,7 @@ export async function listHandedOver(db: Db, limit = 50): Promise<HandedOver[]> 
   const loadedAt = new Date();
   return result.rows.map((row) => ({
     id: row.id,
-    who: row.display_name ?? (row.whatsapp ? `…${row.whatsapp.slice(-4)}` : "Customer"),
+    who: row.display_name ?? (row.whatsapp && /^\d+$/.test(row.whatsapp) ? `…${row.whatsapp.slice(-4)}` : "Customer"),
     since: new Date(row.since),
     because: row.because ?? "a person took it over",
     preview: !row.body ? "" : row.body.length > 90 ? `${row.body.slice(0, 89)}…` : row.body,
