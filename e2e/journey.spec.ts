@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { createDb } from "../src/db/client";
 import { findCode } from "../src/lib/linking";
+import { departureCount } from "./departures";
 import { E2E_ENV } from "./env";
 
 // The plan's web journey: a quote from the seeded price list, then booking a departure.
@@ -19,7 +20,7 @@ test("a visitor gets a quote and books a departure", async ({ page }) => {
   await input.fill("When does it leave?");
   await input.press("Enter");
   const chips = chat.getByRole("group", { name: "Departures for Sundarbans 3-day boat tour" }).getByRole("button");
-  await expect(chips).toHaveCount(4);
+  await expect(chips).toHaveCount(departureCount("sundarbans"));
   await chips.nth(1).click();
 
   await expect(chat.getByText(/You're booked\. Your reference is TR-\d{5}\./)).toBeVisible();
