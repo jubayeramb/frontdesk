@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { SiteHeader } from "@/components/site-header";
+import { ACCESS_EMAIL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "How it works | Triplone Tours (demo)",
@@ -178,10 +179,15 @@ export default function HowItWorks() {
           </ul>
         </Section>
 
-        <Section id="number" title="Why a +1 number">
+        <Section id="whatsapp-access" title="Trying it on WhatsApp">
           <p>
-            Triplone is in Dhaka, but its WhatsApp number is a US +1 number.
-            It came from Kapso&apos;s instant setup, which provisions US numbers.
+            WhatsApp runs on Kapso&apos;s sandbox number, which only answers phones registered for it in the Kapso dashboard.
+            Email{" "}
+            <a href={`mailto:${ACCESS_EMAIL}`} className="text-foreground underline underline-offset-4">
+              {ACCESS_EMAIL}
+            </a>{" "}
+            and I&apos;ll add yours.
+            The web chat works for everyone.
           </p>
         </Section>
 

@@ -75,10 +75,11 @@ pnpm test:e2e                      # Playwright, with a scripted fake model
 `AGENTS.md` has every command, the environment variables, WhatsApp through a Cloudflare tunnel, and the architecture rules.
 The `openspec/` folder holds the design and specs for each change.
 
-## Why a +1 number
+## Trying it on WhatsApp
 
-Triplone is in Dhaka, but its WhatsApp number is a US +1 number.
-It came from Kapso's instant setup, which provisions US numbers.
+WhatsApp runs on Kapso's sandbox number, which only answers phones registered for it in the Kapso dashboard.
+Email [jubayeramb@gmail.com](mailto:jubayeramb@gmail.com) and I'll add yours.
+The web chat works for everyone.
 
 ## What's next
 

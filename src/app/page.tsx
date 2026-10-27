@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DEFAULT_TOURS } from "@/db/seed-data";
 import { env } from "@/env";
 import { whatsappStartLink } from "@/lib/linking";
+import { ACCESS_EMAIL } from "@/lib/site";
 
 const WEEKDAYS = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
 
@@ -39,6 +40,14 @@ export default function Home() {
               <ExternalLink aria-hidden />
             </a>
           </div>
+          <p className="mt-4 max-w-2xl text-sm text-muted-foreground">
+            WhatsApp runs on Kapso&apos;s sandbox number, which only answers phones registered for it.
+            Email{" "}
+            <a href={`mailto:${ACCESS_EMAIL}`} className="text-foreground underline underline-offset-4">
+              {ACCESS_EMAIL}
+            </a>{" "}
+            to have yours added.
+          </p>
         </section>
 
         <section aria-labelledby="tours" className="space-y-6">

@@ -70,6 +70,9 @@ test("the hero offers the website chat and WhatsApp", async ({ page }) => {
   const url = new URL((await whatsapp.getAttribute("href"))!);
   expect(url.origin + url.pathname).toBe(`https://wa.me/${E2E_ENV.NEXT_PUBLIC_WHATSAPP_NUMBER}`);
   expect(url.searchParams.get("text")).toBe("Hi! I'd like to ask about your tours.");
+  // The sandbox only answers registered phones, so the hero says how to get on it.
+  await expect(page.getByText("only answers phones registered for it")).toBeVisible();
+  await expect(page.getByRole("link", { name: "jubayeramb@gmail.com" })).toHaveAttribute("href", "mailto:jubayeramb@gmail.com");
 
   await page.getByRole("link", { name: "Chat on the website" }).click();
   await expect(page.getByRole("dialog", { name: "Triplone Tours front desk" })).toBeVisible();

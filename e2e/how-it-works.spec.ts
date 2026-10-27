@@ -39,6 +39,10 @@ test("the Kapso section lists real issues with what was done about each", async 
 test("the page links back to the demo and the repository", async ({ page }) => {
   await page.goto("/how-it-works");
   const main = page.getByRole("main");
+  await expect(main.getByRole("region", { name: "Trying it on WhatsApp" }).getByRole("link", { name: "jubayeramb@gmail.com" })).toHaveAttribute(
+    "href",
+    "mailto:jubayeramb@gmail.com",
+  );
   await expect(main.getByRole("link", { name: "Try the demo", exact: true })).toHaveAttribute("href", "/");
   await expect(main.getByRole("link", { name: "code on GitHub" })).toHaveAttribute(
     "href",
