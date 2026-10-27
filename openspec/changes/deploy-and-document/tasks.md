@@ -17,7 +17,7 @@
 - [ ] 2.4 Replay a webhook twice, and verify no double reply
 - [ ] 2.5 Send 25 messages quickly, and verify the limit reply and 20 model calls in the `turns` table
 - [ ] 2.6 Ask an off-topic question, and verify a scoped refusal
-- [ ] 2.7 Check `/`, `/c`, `/staff` and `/how-it-works` at phone width and in dark mode on production, and fix anything off
+- [x] 2.7 Check `/`, `/c`, `/staff` and `/how-it-works` at phone width and in dark mode on production, and fix anything off
 
 ## 3. Write-up
 
