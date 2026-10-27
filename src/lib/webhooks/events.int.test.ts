@@ -1,5 +1,6 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { webhookEvents, type WebhookEvent } from "@/db/schema";
 import { setupTestDb } from "../../../test/int/db";
@@ -75,6 +76,16 @@ describe("drain", () => {
       drain(db, "8801700000002", async (e) => void seen.push(idOf(e))),
     ]);
     expect(seen.sort()).toEqual(["a1", "b1"]);
+  });
+
+  it("logs which fields failed validation, without their values", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await storeEvents(db, events("8801700000001", "bad"));
+    const schema = z.object({ message: z.object({ id: z.string(), from: z.string() }) });
+
+    await drain(db, "8801700000001", async (event) => void schema.parse(event.payload), { retryBaseMs: 1 });
+
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/failed on attempt 1: ZodError at message\.from \(invalid_type\)$/));
   });
 
   it("retries a failed event in the same drain after a short wait, before anything behind it", async () => {

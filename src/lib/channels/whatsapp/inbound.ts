@@ -8,8 +8,9 @@ import { isNumbered } from "./render";
 export const kapsoMessageSchema = z.object({
   id: z.string(),
   type: z.string(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  // Null for a customer Meta reports by user id only.
+  from: z.string().nullish(),
+  to: z.string().nullish(),
   timestamp: z.string().optional(),
   text: z.object({ body: z.string() }).optional(),
   interactive: z

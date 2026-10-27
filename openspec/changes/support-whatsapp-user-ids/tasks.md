@@ -14,6 +14,7 @@
 - [x] 3.1 Use the customer's ids for received, sent and ended events and for link codes, and verify with integration tests that a user-id-only customer gets a reply, an inbox reply takes over, an ended conversation is handed back, and a code links
 - [x] 3.2 Send to a user id with `recipient` and to a phone number with `to`, and verify the request bodies in the adapter tests
 - [x] 3.3 Mask only phone identities in `/c` and `/staff`, and verify both views for a user-id-only contact
+- [x] 3.4 Accept `message.from: null`, which production sent for a user-id-only customer and failed validation on, put it in the fixture, and verify the handler tests fail before the fix and pass after; name the failing fields in the event failure log
 
 ## 4. Ship
 
