@@ -28,6 +28,7 @@
 - [ ] 3.4 Rewrite the README (what it is, GIF, diagram, run locally, what works, what is stubbed, what is next, and why a Bangladesh agency uses a US +1 number) in the voice guide's style, and verify every command in it runs
 - [ ] 3.5 Record the GIF and the 30 to 60 second video, and verify no real phone number is visible
 - [x] 3.6 Say on the home page, `/how-it-works`, the README and `AGENTS.md` that WhatsApp runs on the sandbox and only answers registered phones, with an email for access, and verify with the home page e2e test
+- [x] 3.7 Make a 1280x720 poster from the demo recording (no phone number in view) for the video thumbnail and the top of the README, and verify it renders on GitHub
 
 ## Workflow follow-up
 

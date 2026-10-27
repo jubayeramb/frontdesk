@@ -1,5 +1,7 @@
 # Front Desk
 
+![Front Desk: one AI agent on web chat and WhatsApp, built on Kapso. A WhatsApp chat continues a web conversation with a code and answers with the booking reference.](public/poster.png)
+
 One AI agent that answers a tour agency's customers on web chat and WhatsApp, built on [Kapso](https://kapso.ai).
 A person can take over any conversation from Kapso's inbox, and hand it back when they're done.
 
