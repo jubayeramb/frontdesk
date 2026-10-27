@@ -8,6 +8,7 @@
 - [x] 1.4 Add the subdomain the user chose, and verify `/` loads over HTTPS on it
 - [x] 1.5 Create the production Kapso webhook and inbox embed for the production origin, set their secrets, redeploy, and verify Kapso's test delivery returns 200 and `/staff` loads the inbox
 - [ ] 1.6 Add Vercel Web Analytics to the root layout, say so in the footer's privacy note, and verify page views show up after a production deploy
+- [x] 1.7 Move production to Kapso's sandbox number after Meta disabled Triplone (new production webhook and inbox embed, development webhook off, env pushed, redeployed), and verify the site links to the sandbox number, an unsigned webhook gets 401 and Kapso's test delivery gets 200
 
 ## 2. Real-phone checklist on production
 
@@ -26,6 +27,7 @@
 - [x] 3.3 Build `/how-it-works` and verify the project-writeup scenarios with Playwright
 - [ ] 3.4 Rewrite the README (what it is, GIF, diagram, run locally, what works, what is stubbed, what is next, and why a Bangladesh agency uses a US +1 number) in the voice guide's style, and verify every command in it runs
 - [ ] 3.5 Record the GIF and the 30 to 60 second video, and verify no real phone number is visible
+- [x] 3.6 Say on the home page, `/how-it-works`, the README and `AGENTS.md` that WhatsApp runs on the sandbox and only answers registered phones, with an email for access, and verify with the home page e2e test
 
 ## Workflow follow-up
 
