@@ -15,7 +15,8 @@ export type TimelineEntry =
 
 export type Timeline = {
   owner: Owner;
-  // "•••• 4821" once the conversation continued on WhatsApp.
+  // "WhatsApp •••• 4821", or "WhatsApp" for a contact with no number, once
+  // the conversation continued on WhatsApp.
   whatsapp: string | null;
   // When the customer last wrote on WhatsApp, which opens the reply window.
   waLastInboundAt: Date | null;
@@ -39,13 +40,16 @@ export async function loadTimeline(db: Db, conversationId: string): Promise<Time
   };
 }
 
-// The contact's WhatsApp number as "•••• 4821", once they continued there.
+// "WhatsApp •••• 4821" once the contact continued there, or just "WhatsApp"
+// when Meta reports them by user id only: its digits mean nothing to a person.
 export async function maskedWhatsApp(db: Db, contactId: string): Promise<string | null> {
-  const [identity] = await db
+  const ids = await db
     .select({ externalId: channelIdentities.externalId })
     .from(channelIdentities)
     .where(and(eq(channelIdentities.contactId, contactId), eq(channelIdentities.channel, "whatsapp")));
-  return identity ? `•••• ${identity.externalId.slice(-4)}` : null;
+  if (ids.length === 0) return null;
+  const phone = ids.find((id) => /^\d+$/.test(id.externalId));
+  return phone ? `WhatsApp •••• ${phone.externalId.slice(-4)}` : "WhatsApp";
 }
 
 // Replies that never went out, and the extra parts of a reply split for a

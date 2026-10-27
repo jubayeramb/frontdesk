@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { departureCount } from "./departures";
+
 async function openChat(page: Page) {
   await page.getByRole("button", { name: "Chat with us" }).click();
   return page.getByRole("dialog", { name: "Triplone Tours front desk" });
@@ -32,7 +34,7 @@ test("departures show as chips, and a pick sends it and disables the rest", asyn
   await say(page, "when does the sundarbans tour leave?");
 
   const chips = chat.getByRole("group", { name: "Departures for Sundarbans 3-day boat tour" }).getByRole("button");
-  await expect(chips).toHaveCount(4);
+  await expect(chips).toHaveCount(departureCount("sundarbans"));
   const label = (await chips.first().textContent())!;
   await chips.first().click();
 

@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { contacts, conversations } from "@/db/schema";
+import { channelIdentities, contacts, conversations } from "@/db/schema";
 import type { Quote } from "@/lib/pricing/quote";
 import { setupTestDb } from "../../../test/int/db";
 import {
   appendMessage,
+  findConversation,
   findOrCreateConversation,
   getConversation,
   loadWindow,
@@ -43,6 +44,44 @@ describe("findOrCreateConversation", () => {
     ]);
     expect(a.contactId).toBe(b.contactId);
     expect(await db.select().from(contacts)).toHaveLength(1);
+  });
+});
+
+describe("a WhatsApp customer with a phone number and a user id", () => {
+  const phone = "8801700000000";
+  const userId = "BD.1000000000000001";
+  const identities = async () =>
+    (await db.select().from(channelIdentities)).map((row) => [row.externalId, row.contactId]).sort();
+
+  it("stores both ids on one contact", async () => {
+    const conv = await findOrCreateConversation(db, { channel: "whatsapp", externalId: userId, otherIds: [phone] });
+    expect(await identities()).toEqual([[userId, conv.contactId], [phone, conv.contactId]].sort());
+  });
+
+  it("finds the same conversation by the user id alone once the phone number disappears", async () => {
+    const before = await findOrCreateConversation(db, { channel: "whatsapp", externalId: phone });
+    await findOrCreateConversation(db, { channel: "whatsapp", externalId: userId, otherIds: [phone] });
+    const after = await findOrCreateConversation(db, { channel: "whatsapp", externalId: userId });
+    expect(after.id).toBe(before.id);
+    expect(await db.select().from(contacts)).toHaveLength(1);
+  });
+
+  it("starts a contact for a customer known only by user id", async () => {
+    const conv = await findOrCreateConversation(db, { channel: "whatsapp", externalId: userId });
+    expect(await identities()).toEqual([[userId, conv.contactId]]);
+  });
+
+  it("moves an id that pointed at another contact onto the one found first", async () => {
+    const byUserId = await findOrCreateConversation(db, { channel: "whatsapp", externalId: userId });
+    await findOrCreateConversation(db, { channel: "whatsapp", externalId: phone });
+    await findOrCreateConversation(db, { channel: "whatsapp", externalId: userId, otherIds: [phone] });
+    expect(await identities()).toEqual([[userId, byUserId.contactId], [phone, byUserId.contactId]].sort());
+  });
+
+  it("finds the conversation by any of the ids", async () => {
+    const conv = await findOrCreateConversation(db, { channel: "whatsapp", externalId: phone });
+    expect((await findConversation(db, { channel: "whatsapp", externalId: [userId, phone] }))?.id).toBe(conv.id);
+    expect(await findConversation(db, { channel: "whatsapp", externalId: [userId] })).toBeUndefined();
   });
 });
 

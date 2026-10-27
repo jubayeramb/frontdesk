@@ -64,13 +64,14 @@ export async function createLinkCode(db: Db, conversationId: string, now: Date):
 
 export type LinkResult = { linked: true; conversationId: string } | { linked: false };
 
-// Uses a code for a WhatsApp number, in one transaction: the number moves to
-// the web visitor's contact, its other open conversation is closed and kept,
+// Uses a code for a WhatsApp id (a number, or a user id when Meta sends no
+// number), in one transaction: the id moves to the web visitor's contact, its
+// other open conversation is closed and kept,
 // and the web conversation becomes the one WhatsApp continues. The guarded
 // update makes a code work once even when two messages race.
 export async function linkWhatsApp(
   db: Db,
-  input: { code: string; whatsappNumber: string; displayName?: string; now: Date },
+  input: { code: string; whatsappId: string; displayName?: string; now: Date },
 ): Promise<LinkResult> {
   return db.transaction(async (tx) => {
     const [code] = await tx
@@ -84,7 +85,7 @@ export async function linkWhatsApp(
         .select({ conversationId: linkCodes.conversationId })
         .from(linkCodes)
         .innerJoin(channelIdentities, eq(channelIdentities.id, linkCodes.usedByIdentity))
-        .where(and(eq(linkCodes.code, input.code), eq(channelIdentities.externalId, input.whatsappNumber)));
+        .where(and(eq(linkCodes.code, input.code), eq(channelIdentities.externalId, input.whatsappId)));
       return mine ? { linked: true, conversationId: mine.conversationId } : { linked: false };
     }
 
@@ -94,11 +95,11 @@ export async function linkWhatsApp(
       .where(eq(conversations.id, code.conversationId));
     if (!web) return { linked: false };
 
-    // Point the number at the web contact, creating the identity if the number is new.
+    // Point the id at the web contact, creating the identity if the id is new.
     const [existing] = await tx
       .select()
       .from(channelIdentities)
-      .where(and(eq(channelIdentities.channel, "whatsapp"), eq(channelIdentities.externalId, input.whatsappNumber)));
+      .where(and(eq(channelIdentities.channel, "whatsapp"), eq(channelIdentities.externalId, input.whatsappId)));
     let identityId: number;
     if (existing) {
       identityId = existing.id;
@@ -108,13 +109,13 @@ export async function linkWhatsApp(
           .set({ closedAt: input.now, updatedAt: sql`now()` })
           .where(and(eq(conversations.contactId, existing.contactId), isNull(conversations.closedAt)));
         await tx.update(channelIdentities).set({ contactId: web.contactId }).where(eq(channelIdentities.id, existing.id));
-        // The number's usage comes along, so linking never resets its limits.
+        // The id's usage comes along, so linking never resets its limits.
         await tx.update(turns).set({ contactId: web.contactId }).where(eq(turns.contactId, existing.contactId));
       }
     } else {
       const [created] = await tx
         .insert(channelIdentities)
-        .values({ contactId: web.contactId, channel: "whatsapp", externalId: input.whatsappNumber })
+        .values({ contactId: web.contactId, channel: "whatsapp", externalId: input.whatsappId })
         .returning({ id: channelIdentities.id });
       identityId = created!.id;
     }

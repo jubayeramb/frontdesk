@@ -33,3 +33,28 @@ describe("WhatsApp adapter typing indicator", () => {
     warn.mockRestore();
   });
 });
+
+describe("WhatsApp adapter addressing", () => {
+  const text = { type: "text" as const, text: "Hello" };
+
+  it("sends to a phone number with `to`", async () => {
+    const kapso = fakeKapso();
+    const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: PHONE_NUMBER_ID, fetch: kapso.fetch });
+
+    await adapter.send("8801700000000", text, { nonce: "n1" });
+
+    expect(kapso.sends[0]).toMatchObject({ to: "8801700000000", type: "text" });
+    expect(kapso.sends[0]).not.toHaveProperty("recipient");
+  });
+
+  it("sends to a business-scoped user id with `recipient`", async () => {
+    const kapso = fakeKapso();
+    const adapter = createWhatsAppAdapter({ apiKey: "k", phoneNumberId: PHONE_NUMBER_ID, fetch: kapso.fetch });
+
+    const result = await adapter.send("BD.1000000000000002", text, { nonce: "n1" });
+
+    expect(result).toEqual({ ok: true, externalId: "wamid.fake-1" });
+    expect(kapso.sends[0]).toMatchObject({ recipient: "BD.1000000000000002", type: "text" });
+    expect(kapso.sends[0]).not.toHaveProperty("to");
+  });
+});

@@ -222,7 +222,7 @@ describe("a conversation on both channels", () => {
     const { chat, cookie } = await linked();
     const transcript = (await (await chat.get(cookie)).json()) as ChatTranscriptResponse;
     expect(transcript.owner).toBe("human");
-    expect(transcript.whatsapp).toBe("•••• 4821");
+    expect(transcript.whatsapp).toBe("WhatsApp •••• 4821");
     expect(transcript.messages.map((m) => [m.from, m.channel, m.reply.kind === "choices" ? m.reply.prompt : m.reply.text])).toEqual([
       ["visitor", "web", "how much is the Sylhet tour for 2?"],
       ["agent", "web", "Hi! Which tour are you interested in?"],

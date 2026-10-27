@@ -94,7 +94,7 @@ function Status({ timeline }: { timeline: Timeline }) {
       {timeline.whatsapp && (
         // The number and its reply window wrap as one.
         <span className="flex flex-wrap gap-x-3 gap-y-1">
-          <span className="text-muted-foreground">WhatsApp {timeline.whatsapp}</span>
+          <span className="text-muted-foreground">{timeline.whatsapp}</span>
           <ReplyWindow lastInboundAt={timeline.waLastInboundAt?.getTime() ?? null} loadedAt={timeline.loadedAt.getTime()} />
         </span>
       )}

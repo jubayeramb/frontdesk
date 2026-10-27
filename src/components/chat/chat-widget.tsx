@@ -299,7 +299,7 @@ function StatusStrip({ status, whatsappNumber }: { status: Status; whatsappNumbe
   const text =
     status.owner === "human"
       ? "A person from our team is answering on WhatsApp."
-      : `This chat continues on WhatsApp ${status.whatsapp}.`;
+      : `This chat continues on ${status.whatsapp}.`;
   return (
     <div className="flex items-center justify-between gap-3 border-b bg-muted/60 px-4 py-2 text-sm" data-testid="chat-status">
       <p>{text}</p>

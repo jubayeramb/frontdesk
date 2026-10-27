@@ -34,4 +34,17 @@ describe("listHandedOver", () => {
     expect(list[1]!.preview).toHaveLength(90);
     expect(list[0]!.since.getTime()).toBeLessThanOrEqual(list[1]!.since.getTime());
   });
+
+  it("shows the number's last digits, never a user id's", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const both = await findOrCreateConversation(db, { channel: "whatsapp", externalId: "BD.1000000000000001", otherIds: ["8801700001234"] });
+    await transition(db, { conversationId: both.id, event: "human_replied" });
+    const userIdOnly = await findOrCreateConversation(db, { channel: "whatsapp", externalId: "BD.1000000000000002" });
+    await transition(db, { conversationId: userIdOnly.id, event: "human_replied" });
+
+    const list = await listHandedOver(db);
+    expect(list.map((c) => c.who)).toEqual(["…1234", "Customer"]);
+    // Both are on WhatsApp, so both show the reply window.
+    expect(list.every((c) => c.whatsapp !== null)).toBe(true);
+  });
 });

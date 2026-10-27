@@ -1,0 +1,12 @@
+{
+  "description": "A conversation opened by a customer known only by business-scoped user id.",
+  "capturedAt": "2026-10-27T20:08:30.000Z",
+  "headers": {
+    "content-type": "application/json",
+    "x-webhook-event": "whatsapp.conversation.created",
+    "x-webhook-payload-version": "v2",
+    "x-idempotency-key": "b64441652f051bd01bdf7f54db2516879cadb1d3ccb15e2e365808f86eae0903",
+    "x-webhook-signature": "5fd0ee7f42820a8df8cde0b9b95297f15ff5d6702030844752161922649bee39"
+  },
+  "body": "{\"conversation\":{\"id\":\"6f0d3c1e-2b8a-4c55-9e57-3a1f0b9d7c42\",\"status\":\"active\",\"username\":\"testcustomer2\",\"phone_number_id\":\"1382322134966757\",\"business_scoped_user_id\":\"BD.1000000000000002\"},\"phone_number_id\":\"1382322134966757\"}"
+}

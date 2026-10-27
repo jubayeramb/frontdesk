@@ -60,7 +60,7 @@ describe("POST /api/webhooks/kapso", () => {
     await setup().receive(fixtureRequest("message-received-batch"));
     const stored = await rows();
     expect(stored.map((r) => (r.payload.message as { text: { body: string } }).text.body)).toEqual(["X", "Y", "Z"]);
-    expect(stored.every((r) => r.partitionKey === "8801700000000" && r.status === "pending")).toBe(true);
+    expect(stored.every((r) => r.partitionKey === "BD.1000000000000001" && r.status === "pending")).toBe(true);
   });
 
   it("acknowledges before any event is processed", async () => {
