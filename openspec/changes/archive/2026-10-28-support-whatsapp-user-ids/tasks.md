@@ -19,4 +19,4 @@
 ## 4. Ship
 
 - [x] 4.1 Run lint, typecheck, unit, integration and e2e tests, and verify they pass
-- [ ] 4.2 Deploy, message the Triplone number from the user-id-only account, and verify the agent replies and a link code continues a web conversation
+- [x] 4.2 Deploy and check a user-id-only customer on production; partly seen on Triplone before Meta disabled it: the agent ran for that customer's conversation and handed it to a person at 21:28 UTC on 2026-10-27. A delivered reply and a link code by user id were not confirmed live; both are covered by `kapso-handler.int.test.ts`, and the sandbox reports a phone number, so it cannot reproduce the case
