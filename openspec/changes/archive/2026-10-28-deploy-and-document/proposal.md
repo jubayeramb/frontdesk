@@ -10,8 +10,8 @@ A short, honest write-up, including what was hard on Kapso, is worth more to a r
 - Deploy to Vercel with a Neon production branch, migrations and seed, all env vars, and a subdomain.
 - Create the production Kapso webhook and inbox embed, pointed at the production URL.
 - Add `/how-it-works`: the architecture diagram, the main decisions, and "What tripped me up on Kapso", drawn from notes kept in every earlier change.
-- Rewrite the README: what it is, a GIF, the diagram, how to run it, what works, what is stubbed, what is next.
-- Record a 30 to 60 second video of the demo script.
+- Rewrite the README: what it is, a poster, the diagram, how to run it, what works, what is stubbed, what is next.
+- Record a demo video of the full flow.
 - Run the full real-phone checklist against production before anything is shared.
 
 Out of scope: making the repo public, which happens only when the user says so.
@@ -33,5 +33,5 @@ None.
 
 ## Impact
 
-- New: `src/app/how-it-works/page.tsx`, `README.md` rewrite, `public/demo.gif`, diagram asset.
+- New: `src/app/how-it-works/page.tsx`, `README.md` rewrite, `public/poster.png`, diagram asset.
 - External: Vercel project, Neon production branch, DNS record, production Kapso webhook and inbox embed.

@@ -38,10 +38,16 @@ Renders on GitHub, but not on the site without a client library.
 Plain voice, short sentences, specific numbers (tokens per turn, Groq limits, webhook retry timings) taken from the notes.
 The clean-room rule applies: nothing from the author's employer.
 
-### Video and GIF
+### Video and poster
 
-Screen recording of the demo script: web quote, continue on WhatsApp (phone mirrored), book, ask for a person, staff reply from `/staff`, hand back.
-GIF is a 10 to 15 second cut of the web quote for the README.
+Screen recording of the demo: web quote and booking, continue on WhatsApp with a code, a staff reply from `/staff`, hand back, lists and buttons, asking for a person, then `/how-it-works`.
+It ran 9:32 and is shared uncut, unlisted on YouTube with chapters, with the phone number in Kapso's inbox header blurred.
+A 1280x720 poster made from the recording replaced the GIF: it is the video thumbnail and the top of the README.
+
+### The real-phone checklist after the ban
+
+Meta disabled Triplone for good on 2026-10-27, partway through the checklist.
+The flows the recording shows count as verified on the sandbox, the off-topic refusal was checked live on the web chat, and the rest (price change, webhook replay, the limit) rely on their integration and e2e tests rather than a live run.
 
 ## Risks / Trade-offs
 
